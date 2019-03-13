@@ -71,6 +71,13 @@ st_init ()
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
 
+
+  char server_message[256] = "You have reached the server!";
+  int client_socket;
+  client_socket = accept( server_socket_fd, NULL, NULL );
+  send(client_socket, server_message, sizeof(server_message), 0);
+  close(server_socket_fd);
+
   // END TODO
 }
 
@@ -110,7 +117,7 @@ st_signal ()
 {
   // TODO: Remplacer le contenu de cette fonction
 
-
+  printf("Signal!\n");
 
   // TODO end
 }
