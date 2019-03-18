@@ -17,13 +17,6 @@
 
 #include <time.h>
 
-// TODO Enlever parce que c'est juste pour l'erreur sur mac
-#ifndef SOCK_NONBLOCK
-#include <fcntl.h>
-# define SOCK_NONBLOCK O_NONBLOCK
-#endif
-// TODO END
-
 enum { NUL = '\0' };
 
 enum {
@@ -71,13 +64,6 @@ st_init ()
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
 
-
-  char server_message[256] = "You have reached the server!";
-  int client_socket;
-  client_socket = accept( server_socket_fd, NULL, NULL );
-  send(client_socket, server_message, sizeof(server_message), 0);
-  close(server_socket_fd);
-
   // END TODO
 }
 
@@ -85,30 +71,22 @@ void
 st_process_requests (server_thread * st, int socket_fd)
 {
   // TODO: Remplacer le contenu de cette fonction
-  struct pollfd fds[1];
-  fds->fd = socket_fd;
-  fds->events = POLLIN;
-  fds->revents = 0;
 
-  for (;;) {
-    struct cmd_header_t header = { .nb_args = 0 };
+  struct cmd_header_t header = { .nb_args = 0 };
 
-    int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
-    if (len > 0) {
-      if (len != sizeof(header.cmd) && len != sizeof(header)) {
-        printf ("Thread %d received invalid command size=%d!\n", st->id, len);
-        break;
-      }
+  int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+  if (len > 0) {
+    if (len != sizeof(header.cmd) && len != sizeof(header)) {
+      printf ("Thread %d received invalid command size=%d!\n", st->id, len);
+    } else {
       printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
-    } else {
-      if (len == 0) {
-        fprintf(stderr, "Thread %d, connection timeout\n", st->id);
-      }
-      break;
+    }
+  } else {
+    if (len == 0) {
+      fprintf(stderr, "Thread %d, connection timeout\n", st->id);
     }
   }
-  close(socket_fd);
 }
 
 
@@ -117,7 +95,7 @@ st_signal ()
 {
   // TODO: Remplacer le contenu de cette fonction
 
-  printf("Signal!\n");
+
 
   // TODO end
 }

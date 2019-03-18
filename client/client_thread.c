@@ -2,7 +2,6 @@
 #define _XOPEN_SOURCE 500
 
 #include "client_thread.h"
-#include <netinet/in.h>
 
 int port_number = -1;
 int num_request_per_client = -1;
@@ -59,32 +58,6 @@ ct_code (void *param)
 
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
-
-  // creation du socket pour établir une connection
-  socket_fd = (AF_INET, SOCK_STREAM, 0);
-  
-  // addresse pour le socket
-  struct sockaddr_in address_serveur;
-  address_serveur.sin_family = AF_INET;
-  address_serveur.sin_port = htons( port_number ); 
-  address_serveur.sin_addr.s_addr = INADDR_ANY;
-
-  // obtain certain int qu'indique si la connection est fait avec success
-  int connection_status = connect(socket_fd, (struct sockaddr *) &address_serveur, sizeof(address_serveur) );
-
-  if (connection_status == -1)
-  {
-    printf("Echec de la connection avec le socket\n");
-  }
-
-  char reponse_serveur[256];
-  recv( socket_fd, &reponse_serveur, sizeof(reponse_serveur), 0 );
-
-  // afficher la reponse du serveur
-  printf("Serveur reponse : %s\n", reponse_serveur );
-
-  close(socket_fd);
-
   // TP2 TODO:END
 
   for (unsigned int request_id = 0; request_id < num_request_per_client;

@@ -13,7 +13,7 @@ main (int argc, char *argv[argc + 1])
   }
 
   port_number = atoi (argv[1]);
-  int num_clients = 1; // TODO Enlever 1 // atoi (argv[2]);
+  int num_clients = atoi (argv[2]);
   num_request_per_client = atoi (argv[3]);
   num_resources = argc - 4;
 
