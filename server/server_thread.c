@@ -64,6 +64,9 @@ st_init ()
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
 
+
+  //st_init attend les requètes BEGIN et conf pour permettre l'initialisation des ressources du server.
+
   // END TODO
 }
 

@@ -1,14 +1,20 @@
 /* This `define` tells unistd to define usleep and random.  */
 #define _XOPEN_SOURCE 500
-
+#include <netinet/in.h>
 #include "client_thread.h"
+
+#include <sys/types.h>
+#include <sys/poll.h>
+#include <sys/socket.h>
+#include <memory.h>
+#include <arpa/inet.h>
 
 int port_number = -1;
 int num_request_per_client = -1;
 int num_resources = -1;
 int *provisioned_resources = NULL;
 
-// Variable d'initialisation des threads clients.
+//Variable d'initialisation des threads clients.
 unsigned int count = 0;
 
 
@@ -42,12 +48,46 @@ send_request (int client_id, int request_id, int socket_fd)
   // TP2 TODO
 
   fprintf (stdout, "Client %d is sending its %d request\n", client_id,
-      request_id);
+           request_id);
 
   // TP2 TODO:END
 
 }
 
+int connect_ct(int sock)
+{
+  //struct sockaddr_in address;
+  // int sock = 0;
+  struct sockaddr_in serv_addr;
+
+  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+  {
+    printf("\n Socket creation error \n");
+    return -1;
+  }
+
+  memset(&serv_addr, '0', sizeof(serv_addr));
+
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_port = htons(port_number);
+
+  // Convert IPv4 and IPv6 addresses from text to binary form
+  if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)
+  {
+    printf("\nInvalid address/ Address not supported \n");
+    return -1;
+  }
+
+  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+  {
+    printf("\nConnection Failed judelin \n");
+    return -1;
+  }
+
+  printf("Hello message sent\n");
+
+  return 0;
+}
 
 void *
 ct_code (void *param)
@@ -55,13 +95,13 @@ ct_code (void *param)
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
 
-
+  connect_ct(socket_fd);
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
   // TP2 TODO:END
 
   for (unsigned int request_id = 0; request_id < num_request_per_client;
-      request_id++)
+       request_id++)
   {
 
     // TP2 TODO
@@ -139,6 +179,20 @@ st_print_results (FILE * fd, bool verbose)
   else
   {
     fprintf (fd, "%d %d %d %d %d\n", count_accepted, count_on_wait,
-        count_invalid, count_dispatched, request_sent);
+             count_invalid, count_dispatched, request_sent);
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+//**************************************//
+
