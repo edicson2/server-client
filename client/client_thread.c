@@ -35,6 +35,26 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 
 
+void recevoir_st (int socket_fd) {
+  char message[256];
+  int len = read_socket(socket_fd, message, sizeof(message), 0);
+  printf(message);
+}
+
+
+int send_ct (int socket) {
+
+    //int begin[3] = {0, 1, 76453};
+    //send(socket, &begin, sizeof(begin), 0);
+
+    int premier[7] = {0, 1, 10, 5, 3, 23, 1};
+    send(socket, &premier, sizeof(premier), 0);
+    recevoir_st(socket);
+    close(socket);
+    return 0;
+}
+
+
 // Vous devez modifier cette fonction pour faire l'envoie des requêtes
 // Les ressources demandées par la requête doivent être choisies aléatoirement
 // (sans dépasser le maximum pour le client). Elles peuvent être positives
@@ -49,15 +69,15 @@ send_request (int client_id, int request_id, int socket_fd)
 
   fprintf (stdout, "Client %d is sending its %d request\n", client_id,
            request_id);
+  send_ct(socket_fd);
 
   // TP2 TODO:END
 
 }
 
-int connect_ct(int sock)
+int connect_ct()
 {
-  //struct sockaddr_in address;
-  // int sock = 0;
+  int sock = -1;
   struct sockaddr_in serv_addr;
 
   if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -65,7 +85,6 @@ int connect_ct(int sock)
     printf("\n Socket creation error \n");
     return -1;
   }
-
   memset(&serv_addr, '0', sizeof(serv_addr));
 
   serv_addr.sin_family = AF_INET;
@@ -83,11 +102,9 @@ int connect_ct(int sock)
     printf("\nConnection Failed judelin \n");
     return -1;
   }
-
-  printf("Hello message sent\n");
-
-  return 0;
+  return sock;
 }
+
 
 void *
 ct_code (void *param)
@@ -95,9 +112,11 @@ ct_code (void *param)
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
 
-  connect_ct(socket_fd);
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
+
+  socket_fd = connect_ct();
+
   // TP2 TODO:END
 
   for (unsigned int request_id = 0; request_id < num_request_per_client;
