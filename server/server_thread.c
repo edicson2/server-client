@@ -53,9 +53,49 @@ unsigned int clients_ended = 0;
 // TODO: Ajouter vos structures de données partagées, ici.
 int *available;
 
+
+void process_config_request(int socket_st) {
+
+  struct pollfd fds[1];
+  fds->fd = socket_st;
+  fds->events = POLLIN;
+  fds->revents = 0;
+
+  bool begin_recu = false;
+  server_thread * st;
+  struct cmd_header_t header = { .nb_args = 0 };
+
+  int len = read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);
+
+  if (len > 0) {
+    if (len != sizeof(header.cmd) && len != sizeof(header)) {
+      printf("PREMIER");
+      printf ("Thread %d received invalid command size=%d!\n", st->id, len);
+    } else {
+      printf("DEUXIEME");
+      printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
+      switch (header.cmd) {
+        case 0:
+          printf("BEGIN!\n");
+          break;
+        case 1: printf("CONFIGURATION!\n"); break;
+        default: printf("Erreur!!\n"); break;
+      }
+      // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
+    }
+  } else {
+    printf("TROISIEME");
+    if (len == 0) {
+      fprintf(stderr, "Thread %d, connection timeout\n", st->id);
+    }
+  }
+//
+}
+
 void
 st_init ()
 {
+
   // Initialise le nombre de clients connecté.
   nb_registered_clients = 0;
 
@@ -64,21 +104,29 @@ st_init ()
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
 
+  struct sockaddr_in thread_addr;
+  socklen_t socket_len = sizeof (thread_addr);
+  int thread_socket_fd = -1;
+  while (thread_socket_fd < 0)
+  {
+    thread_socket_fd = accept (server_socket_fd, (struct sockaddr *) &thread_addr, &socket_len);
+  }
 
   //st_init attend les requètes BEGIN et conf pour permettre l'initialisation des ressources du server.
+  process_config_request(server_socket_fd);
 
   // END TODO
 }
 
-void send_st (int socket, char *text) {
-    send(socket, text, sizeof(text), 0 );
-}
 
 void
 st_process_requests (server_thread * st, int socket_fd)
 {
   // TODO: Remplacer le contenu de cette fonction
-
+  struct pollfd fds[1];
+  fds->fd = socket_fd;
+  fds->events = POLLIN;
+  fds->revents = 0;
 
 
   struct cmd_header_t header = { .nb_args = 0 };
@@ -92,8 +140,8 @@ st_process_requests (server_thread * st, int socket_fd)
       printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
       switch (header.cmd) {
           case 0:
-              printf("BEGIN!!!!!\n");
-              send_st(socket_fd, "Connecte au serveur");
+              printf("Value received is %d\n", header.cmd);
+
               break;
           case 1: printf("CONFIGURATION!\n"); break;
           case 2: printf("INITIALIZATION\n"); break;

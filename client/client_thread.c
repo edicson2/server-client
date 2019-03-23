@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <memory.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 int port_number = -1;
 int num_request_per_client = -1;
@@ -35,21 +36,11 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 
 
-void recevoir_st (int socket_fd) {
-  char message[256];
-  int len = read_socket(socket_fd, message, sizeof(message), 0);
-  printf(message);
-}
 
+int send_ct (int socket, void *tab) {
 
-int send_ct (int socket) {
+    send(socket, &tab, sizeof(tab), 0);
 
-    //int begin[3] = {0, 1, 76453};
-    //send(socket, &begin, sizeof(begin), 0);
-
-    int premier[7] = {0, 1, 10, 5, 3, 23, 1};
-    send(socket, &premier, sizeof(premier), 0);
-    recevoir_st(socket);
     close(socket);
     return 0;
 }
@@ -69,24 +60,28 @@ send_request (int client_id, int request_id, int socket_fd)
 
   fprintf (stdout, "Client %d is sending its %d request\n", client_id,
            request_id);
-  send_ct(socket_fd);
+  //send_ct(socket_fd);
 
   // TP2 TODO:END
 
 }
 
-int connect_ct()
-{
-  int sock = -1;
-  struct sockaddr_in serv_addr;
-
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+int creer_socket() {
+  int socket_ct;
+  if ((socket_ct = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
     printf("\n Socket creation error \n");
     return -1;
   }
-  memset(&serv_addr, '0', sizeof(serv_addr));
+  return socket_ct;
+}
 
+
+void connect_ct(int socket_ct)
+{
+  struct sockaddr_in serv_addr;
+
+  memset(&serv_addr, '0', sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_port = htons(port_number);
 
@@ -94,16 +89,76 @@ int connect_ct()
   if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)
   {
     printf("\nInvalid address/ Address not supported \n");
-    return -1;
+    exit(1);
+  }
+  // Attendre jusqu'á obtenir une conection
+  while (connect(socket_ct, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0);
+}
+
+
+void recevoir_reponse(int socket_ct, char *str) {
+
+  struct cmd_header_t header = { .nb_args = 0 };
+
+  int len = read_socket(socket_ct, &header, sizeof(header), 30 * 1000);
+
+  if (len > 0) {
+    if (len != sizeof(header.cmd) && len != sizeof(header)) {
+      printf ("Thread %d received invalid command size=%d!\n", len, len);
+    } else {
+      printf("Thread %d received command=%d, nb_args=%d\n", len, header.cmd, header.nb_args);
+      switch (header.cmd) {
+        case 4:
+          printf("ACK!\n");
+          printf("Value received is %d\n", header.cmd);
+
+          break;
+        case 5: printf("WAIT!\n"); break;
+        case 8: printf("ERR!\n"); break;
+        default: printf("Erreur!!\n"); break;
+      }
+      // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
+    }
+  } else {
+    if (len == 0) {
+      fprintf(stderr, "Thread %d, connection timeout\n", 0);
+    }
+  }
+}
+
+void envoyer_configuration_initial(int socket_fd) {
+
+  // Envoyer la requete pour commencer le serveur
+  int rng = rand(); // random number to send to the server
+  int begin[3] = {0, 1, rng};
+  send(socket_fd, begin, sizeof(begin), 0);
+
+
+  // TODO recevoir la reponse du serveur et vérifier si rng est le meme qu'on a envoyé
+
+  printf("");
+//
+
+  int *allocations = (int*)malloc(num_resources * sizeof(int));
+  int *max = (int*)malloc(num_resources * sizeof(int));
+  for(int i = 0; i < num_resources; i++) {
+    allocations[i] = 0;
+    max[i] = rand() % (provisioned_resources[i]+1);
   }
 
-  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+  char ini[200];
+  sprintf(ini, "INI %d", max[0]);
+  for(int j = 1; j < num_resources; j++)
   {
-    printf("\nConnection Failed judelin \n");
-    return -1;
+    sprintf(ini, "%s %d", ini, max[j]);
   }
-  return sock;
+  sprintf(ini, "%s\n", ini);
+
+  send(socket_fd, ini, sizeof(ini), 0);
+
+
 }
+
 
 
 void *
@@ -115,7 +170,14 @@ ct_code (void *param)
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
 
-  socket_fd = connect_ct();
+  // Creer le socket pour faire la connection
+  socket_fd = creer_socket();
+  connect_ct(socket_fd);
+
+  envoyer_configuration_initial(socket_fd);
+
+
+
 
   // TP2 TODO:END
 
@@ -127,7 +189,7 @@ ct_code (void *param)
     // Vous devez ici coder, conjointement avec le corps de send request,
     // le protocole d'envoi de requête.
 
-    send_request (ct->id, request_id, socket_fd);
+    //send_request (ct->id, request_id, socket_fd);
 
     // TP2 TODO:END
 
