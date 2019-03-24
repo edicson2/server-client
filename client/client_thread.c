@@ -142,6 +142,9 @@ void envoyer_configuration_initial(int socket_fd) {
 
   recevoir_reponse(socket_fd);
 
+  // TODO Verifier que le nombre retourné rng est le meme
+
+
   printf("");
 //
 
@@ -176,7 +179,7 @@ ct_code (void *param)
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
 
-  // Creer le socket pour faire la connection
+  // Creer le socket et faire la connection
   socket_fd = creer_socket();
   connect_ct(socket_fd);
 
