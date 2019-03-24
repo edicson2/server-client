@@ -39,10 +39,10 @@ unsigned int request_sent = 0;
 
 int send_ct (int socket, void *tab) {
 
-    send(socket, &tab, sizeof(tab), 0);
+  send(socket, &tab, sizeof(tab), 0);
 
-    close(socket);
-    return 0;
+  close(socket);
+  return 0;
 }
 
 
@@ -96,7 +96,7 @@ void connect_ct(int socket_ct)
 }
 
 
-void recevoir_reponse(int socket_ct, char *str) {
+void recevoir_reponse(int socket_ct) {
 
   struct cmd_header_t header = { .nb_args = 0 };
 
@@ -109,9 +109,12 @@ void recevoir_reponse(int socket_ct, char *str) {
       printf("Thread %d received command=%d, nb_args=%d\n", len, header.cmd, header.nb_args);
       switch (header.cmd) {
         case 4:
-          printf("ACK!\n");
-          printf("Value received is %d\n", header.cmd);
-
+          if(header.nb_args == 0) {
+            printf("requete de ressources exécuté!\n");
+          } else {
+            printf("ACK de commencement!\n");
+            printf("Value received is %d\n", header.cmd);
+          }
           break;
         case 5: printf("WAIT!\n"); break;
         case 8: printf("ERR!\n"); break;
@@ -133,8 +136,11 @@ void envoyer_configuration_initial(int socket_fd) {
   int begin[3] = {0, 1, rng};
   send(socket_fd, begin, sizeof(begin), 0);
 
+  // TODO mutex pour l'acces
+  request_sent++;
+  // TODO fintex fin
 
-  // TODO recevoir la reponse du serveur et vérifier si rng est le meme qu'on a envoyé
+  recevoir_reponse(socket_fd);
 
   printf("");
 //
@@ -147,15 +153,15 @@ void envoyer_configuration_initial(int socket_fd) {
   }
 
   char ini[200];
-  sprintf(ini, "INI %d", max[0]);
+  sprintf(ini, "1 %d", max[0]);
   for(int j = 1; j < num_resources; j++)
   {
     sprintf(ini, "%s %d", ini, max[j]);
   }
   sprintf(ini, "%s\n", ini);
-
-  send(socket_fd, ini, sizeof(ini), 0);
-
+  int r[3] = {1, 2, 4, 4};
+  send(socket_fd, r, sizeof(r), 0);
+  recevoir_reponse(socket_fd);
 
 }
 
@@ -200,7 +206,6 @@ ct_code (void *param)
      * delay.tv_sec = 0;
      * nanosleep (&delay, NULL); */
   }
-
   pthread_exit (NULL);
 }
 
@@ -276,4 +281,3 @@ st_print_results (FILE * fd, bool verbose)
 
 
 //**************************************//
-

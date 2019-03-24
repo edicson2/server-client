@@ -20,9 +20,9 @@
 enum { NUL = '\0' };
 
 enum {
-  /* Configuration constants.  */
-  max_wait_time = 30,
-  server_backlog_size = 5
+    /* Configuration constants.  */
+            max_wait_time = 30,
+    server_backlog_size = 5
 };
 
 unsigned int server_socket_fd;
@@ -69,22 +69,28 @@ void process_config_request(int socket_st) {
 
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
-      printf("PREMIER");
       printf ("Thread %d received invalid command size=%d!\n", st->id, len);
     } else {
-      printf("DEUXIEME");
-      printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
       switch (header.cmd) {
         case 0:
           printf("BEGIN!\n");
+          int rng = 0;
+          int begin[3] = {4, 1, rng};
+          send(socket_st, begin, sizeof(begin), 0 );
           break;
-        case 1: printf("CONFIGURATION!\n"); break;
-        default: printf("Erreur!!\n"); break;
+        case 1:
+          printf("Debut de la configuration...\n");
+          printf("CONFIGURATION!\n");
+          int ack = {4, 0};
+          send(socket_st, ack, sizeof(ack), 0);
+          break;
+        default:
+          printf("header.cmd = %d", header.cmd);
+          printf("Erreur!!\n"); break;
       }
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
     }
   } else {
-    printf("TROISIEME");
     if (len == 0) {
       fprintf(stderr, "Thread %d, connection timeout\n", st->id);
     }
@@ -113,8 +119,7 @@ st_init ()
   }
 
   //st_init attend les requètes BEGIN et conf pour permettre l'initialisation des ressources du server.
-  process_config_request(server_socket_fd);
-
+  process_config_request(thread_socket_fd);
   // END TODO
 }
 
@@ -135,20 +140,20 @@ st_process_requests (server_thread * st, int socket_fd)
 
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
-      printf ("Thread %d received invalid command size=%d!\n", st->id, len);
+      //printf ("Thread %d received invalid command size=%d!\n", st->id, len);
     } else {
-      printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
+      //printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
       switch (header.cmd) {
-          case 0:
-              printf("Value received is %d\n", header.cmd);
+        case 0:
+          //printf("Value received is %d\n", header.cmd);
 
-              break;
-          case 1: printf("CONFIGURATION!\n"); break;
-          case 2: printf("INITIALIZATION\n"); break;
-          case 3: printf("REQUETE\n"); break;
-          case 6: printf("END\n"); break;
-          case 7: printf("CLOSE\n"); break;
-          default: printf("Erreur!!\n"); break;
+          break;
+        case 1: printf("CONFIGURATION!\n"); break;
+        case 2: printf("INITIALIZATION\n"); break;
+        case 3: printf("REQUETE\n"); break;
+        case 6: printf("END\n"); break;
+        case 7: printf("CLOSE\n"); break;
+        default: printf("Erreur!!\n"); break;
       }
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
     }
@@ -164,7 +169,7 @@ void
 st_signal ()
 {
   // TODO: Remplacer le contenu de cette fonction
-    // On doit impĺementer END ici
+  // On doit impĺementer END ici
 
 
   // TODO end
@@ -184,8 +189,8 @@ st_code (void *param)
   while (thread_socket_fd < 0)
   {
     thread_socket_fd =
-      accept (server_socket_fd, (struct sockaddr *) &thread_addr,
-          &socket_len);
+            accept (server_socket_fd, (struct sockaddr *) &thread_addr,
+                    &socket_len);
 
     if (time (NULL) >= end_time)
     {
@@ -208,8 +213,8 @@ st_code (void *param)
       end_time = time (NULL) + max_wait_time;
     }
     thread_socket_fd =
-      accept (server_socket_fd, (struct sockaddr *) &thread_addr,
-          &socket_len);
+            accept (server_socket_fd, (struct sockaddr *) &thread_addr,
+                    &socket_len);
   }
   return NULL;
 }
@@ -237,8 +242,8 @@ st_open_socket (int port_number)
   serv_addr.sin_port = htons (port_number);
 
   if (bind
-      (server_socket_fd, (struct sockaddr *) &serv_addr,
-       sizeof (serv_addr)) < 0)
+              (server_socket_fd, (struct sockaddr *) &serv_addr,
+               sizeof (serv_addr)) < 0)
     perror ("ERROR on binding");
 
   listen (server_socket_fd, server_backlog_size);
@@ -266,6 +271,6 @@ st_print_results (FILE * fd, bool verbose)
   else
   {
     fprintf (fd, "%d %d %d %d %d\n", count_accepted, count_wait,
-        count_invalid, count_dispatched, request_processed);
+             count_invalid, count_dispatched, request_processed);
   }
 }
