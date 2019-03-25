@@ -54,45 +54,48 @@ unsigned int clients_ended = 0;
 int *available;
 
 
+//int pthread_mutex_init(pthread_mutex_t *restrict mutex, const pthread_mutexattr_t *restrict attr);
+//int pthread_mutex_lock (pthread_mutex_t *mutex);
+
+// Mutex
+pthread_mutex_t lock;
+
+// verifier si la configuration initial est deja fait
+bool begin_recu = false;
+bool config_recu = false;
+
+
+
 void process_config_request(int socket_st) {
 
-  struct pollfd fds[1];
-  fds->fd = socket_st;
-  fds->events = POLLIN;
-  fds->revents = 0;
-
-  bool begin_recu = false;
-  server_thread * st;
   struct cmd_header_t header = { .nb_args = 0 };
 
   int len = read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);
 
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
-      printf ("Thread %d received invalid command size=%d!\n", st->id, len);
+      printf ("Thread received invalid command size=%d!\n", len);
     } else {
-      switch (header.cmd) {
-        case 0:
-          printf("BEGIN!\n");
-          int rng = 0;
-          int begin[3] = {4, 1, rng};
-          send(socket_st, begin, sizeof(begin), 0 );
-          break;
-        case 1:
-          printf("Debut de la configuration...\n");
-          printf("CONFIGURATION!\n");
-          int ack = {4, 0};
-          send(socket_st, ack, sizeof(ack), 0);
-          break;
-        default:
-          printf("header.cmd = %d", header.cmd);
-          printf("Erreur!!\n"); break;
+      if (header.cmd == 0) {
+        // Premier commande recu
+        printf("BEGIN!\n");
+        int rng = 0;
+        int reponse[3] = {4, 1, rng};
+        printf("Reponse du serveur...\n");
+        send(socket_st, reponse, sizeof(reponse), 0 );
+      } else if (header.cmd == 1) {
+        printf("Debut de la configuration...\n");
+        int ack[2] = {4, 0};
+        send(socket_st, ack, sizeof(ack), 0);
+      } else {
+        printf("\nElse --->  header.cmd = %d\n", header.cmd);
+        printf("Erreur!!\n");
       }
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
     }
   } else {
     if (len == 0) {
-      fprintf(stderr, "Thread %d, connection timeout\n", st->id);
+      fprintf(stderr, "Thread connection timeout\n");
     }
   }
 //
@@ -118,8 +121,17 @@ st_init ()
     thread_socket_fd = accept (server_socket_fd, (struct sockaddr *) &thread_addr, &socket_len);
   }
 
-  //st_init attend les requètes BEGIN et conf pour permettre l'initialisation des ressources du server.
+  // On fait la configuration initial avec le premier thread
+  pthread_mutex_lock(&lock);
   process_config_request(thread_socket_fd);
+  pthread_mutex_unlock(&lock);
+
+  if (!config_recu) {
+    process_config_request(thread_socket_fd);
+    config_recu = true;
+  }
+
+
   // END TODO
 }
 

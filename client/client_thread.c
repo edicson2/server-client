@@ -36,6 +36,9 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 
 
+// Mutex
+pthread_mutex_t requetes_envoyes;
+
 
 int send_ct (int socket, void *tab) {
 
@@ -96,35 +99,34 @@ void connect_ct(int socket_ct)
 }
 
 
-void recevoir_reponse(int socket_ct) {
+void recevoir_reponse_initial(int socket_ct) {
 
   struct cmd_header_t header = { .nb_args = 0 };
+  int len;
 
-  int len = read_socket(socket_ct, &header, sizeof(header), 30 * 1000);
+  len = read_socket(socket_ct, &header, sizeof(header), 30 * 1000);
 
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
-      printf ("Thread %d received invalid command size=%d!\n", len, len);
+      printf ("First thread received invalid command size=%d!\n", len);
     } else {
-      printf("Thread %d received command=%d, nb_args=%d\n", len, header.cmd, header.nb_args);
+      printf("First thread received command=%d, nb_args=%d\n", header.cmd, header.nb_args);
       switch (header.cmd) {
+        case 0:
+          printf("Reponse du serveur recu... %d", header.cmd);
+              break;
         case 4:
           if(header.nb_args == 0) {
-            printf("requete de ressources exécuté!\n");
+            printf("Requete de ressources exécuté!\n");
           } else {
-            printf("ACK de commencement!\n");
-            printf("Value received is %d\n", header.cmd);
+            printf("Requete de commencement execute avec success!\n");
           }
-          break;
+              break;
         case 5: printf("WAIT!\n"); break;
         case 8: printf("ERR!\n"); break;
         default: printf("Erreur!!\n"); break;
       }
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
-    }
-  } else {
-    if (len == 0) {
-      fprintf(stderr, "Thread %d, connection timeout\n", 0);
     }
   }
 }
@@ -136,17 +138,11 @@ void envoyer_configuration_initial(int socket_fd) {
   int begin[3] = {0, 1, rng};
   send(socket_fd, begin, sizeof(begin), 0);
 
-  // TODO mutex pour l'acces
+  pthread_mutex_lock(&requetes_envoyes);
   request_sent++;
-  // TODO fintex fin
+  pthread_mutex_unlock(&requetes_envoyes);
 
-  recevoir_reponse(socket_fd);
-
-  // TODO Verifier que le nombre retourné rng est le meme
-
-
-  printf("");
-//
+  recevoir_reponse_initial(socket_fd);
 
   int *allocations = (int*)malloc(num_resources * sizeof(int));
   int *max = (int*)malloc(num_resources * sizeof(int));
@@ -164,7 +160,7 @@ void envoyer_configuration_initial(int socket_fd) {
   sprintf(ini, "%s\n", ini);
   int r[3] = {1, 2, 4, 4};
   send(socket_fd, r, sizeof(r), 0);
-  recevoir_reponse(socket_fd);
+  recevoir_reponse_initial(socket_fd);
 
 }
 
