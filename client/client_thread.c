@@ -9,6 +9,7 @@
 #include <memory.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <netinet/tcp.h>
 
 int port_number = -1;
 int num_request_per_client = -1;
@@ -102,28 +103,22 @@ void connect_ct(int socket_ct)
 void recevoir_reponse_initial(int socket_ct) {
 
   struct cmd_header_t header = { .nb_args = 0 };
-  int len;
 
-  len = read_socket(socket_ct, &header, sizeof(header), 30 * 1000);
+  int len = read_socket(socket_ct, &header, sizeof(header), 30 * 1000);
 
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
       printf ("First thread received invalid command size=%d!\n", len);
     } else {
+      if (header.cmd == 8) {
+          printf("Deuxieme BEGIN pas possible");
+          return;
+      }
       printf("First thread received command=%d, nb_args=%d\n", header.cmd, header.nb_args);
-      switch (header.cmd) {
-        case 0:
-          printf("Reponse du serveur recu... %d", header.cmd);
-              break;
-        case 4:
-          if(header.nb_args == 0) {
-            printf("Requete de ressources exécuté!\n");
-          } else {
-            printf("Requete de commencement execute avec success!\n");
-          }
-              break;
-        case 5: printf("WAIT!\n"); break;
-        case 8: printf("ERR!\n"); break;
+      switch (header.nb_args) {
+        case 1:
+          printf("Requete de commencement execute avec success!\n");
+          break;
         default: printf("Erreur!!\n"); break;
       }
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
@@ -135,7 +130,7 @@ void envoyer_configuration_initial(int socket_fd) {
 
   // Envoyer la requete pour commencer le serveur
   int rng = rand(); // random number to send to the server
-  int begin[3] = {0, 1, rng};
+  int begin[3] = {0, 1};//, rng};
   send(socket_fd, begin, sizeof(begin), 0);
 
   pthread_mutex_lock(&requetes_envoyes);
@@ -144,22 +139,27 @@ void envoyer_configuration_initial(int socket_fd) {
 
   recevoir_reponse_initial(socket_fd);
 
-  int *allocations = (int*)malloc(num_resources * sizeof(int));
+  /*int *allocations = (int*)malloc(num_resources * sizeof(int));
   int *max = (int*)malloc(num_resources * sizeof(int));
   for(int i = 0; i < num_resources; i++) {
     allocations[i] = 0;
     max[i] = rand() % (provisioned_resources[i]+1);
   }
 
-  char ini[200];
-  sprintf(ini, "1 %d", max[0]);
+  char conf[200];
+  sprintf(conf, "1 %d", max[0]);
   for(int j = 1; j < num_resources; j++)
   {
-    sprintf(ini, "%s %d", ini, max[j]);
+    sprintf(conf, "%s %d", conf, max[j]);
   }
-  sprintf(ini, "%s\n", ini);
-  int r[3] = {1, 2, 4, 4};
+  sprintf(conf, "%s\n", conf);
+  */
+
+  int r[4] = {1, 2, 4, 4};
   send(socket_fd, r, sizeof(r), 0);
+  pthread_mutex_lock(&requetes_envoyes);
+  request_sent++;
+  pthread_mutex_unlock(&requetes_envoyes);
   recevoir_reponse_initial(socket_fd);
 
 }

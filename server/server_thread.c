@@ -58,7 +58,7 @@ int *available;
 //int pthread_mutex_lock (pthread_mutex_t *mutex);
 
 // Mutex
-pthread_mutex_t lock;
+pthread_mutex_t config_initial;
 
 // verifier si la configuration initial est deja fait
 bool begin_recu = false;
@@ -71,24 +71,32 @@ void process_config_request(int socket_st) {
   struct cmd_header_t header = { .nb_args = 0 };
 
   int len = read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);
-
+  printf("WOW!\n");
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
       printf ("Thread received invalid command size=%d!\n", len);
     } else {
       if (header.cmd == 0) {
-        // Premier commande recu
-        printf("BEGIN!\n");
-        int rng = 0;
-        int reponse[3] = {4, 1, rng};
-        printf("Reponse du serveur...\n");
+        if (begin_recu) {
+          printf("Erreur. Deuxieme BEGIN pas possible");
+          int deuxieme_begin[3] = {8, 1, 1};
+          send(socket_st, deuxieme_begin, sizeof(deuxieme_begin), 0);
+          return;
+        }
+        //read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);;
+        int reponse[2] = {4, 1};//, header.cmd};
+        printf("Debut du serveur...\n");
+        //printf("RNG server value = %d\n", header.cmd);
         send(socket_st, reponse, sizeof(reponse), 0 );
+        begin_recu = true;
+        return;
       } else if (header.cmd == 1) {
-        printf("Debut de la configuration...\n");
-        int ack[2] = {4, 0};
+        int ack[2] = {4, 1};
+        printf("Configuration du serveur...\n");
         send(socket_st, ack, sizeof(ack), 0);
+        config_recu = true;
       } else {
-        printf("\nElse --->  header.cmd = %d\n", header.cmd);
+        printf("\n\nElse --->  header.cmd = %d\n\n\n", header.cmd);
         printf("Erreur!!\n");
       }
       // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
@@ -122,14 +130,22 @@ st_init ()
   }
 
   // On fait la configuration initial avec le premier thread
-  pthread_mutex_lock(&lock);
-  process_config_request(thread_socket_fd);
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_lock(&config_initial);
 
+  if (!begin_recu) {
+    process_config_request(thread_socket_fd);
+  }
+  pthread_mutex_unlock(&config_initial);
+
+  printf("Begin fait!\n");
+
+  pthread_mutex_lock(&config_initial);
   if (!config_recu) {
     process_config_request(thread_socket_fd);
-    config_recu = true;
   }
+  pthread_mutex_unlock(&config_initial);
+
+  printf("Config fait!");
 
 
   // END TODO
