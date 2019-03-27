@@ -37,6 +37,9 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 
 
+bool begin_fait = false;
+
+
 // Mutex
 pthread_mutex_t requetes_envoyes;
 
@@ -106,6 +109,11 @@ void recevoir_reponse_initial(int socket_ct) {
 
   int len = read_socket(socket_ct, &header, sizeof(header), 30 * 1000);
 
+  int rng;
+  if (header.nb_args == 1) {
+    read_socket(socket_ct, &rng, sizeof(rng), 30 * 1000);
+  }
+
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
       printf ("First thread received invalid command size=%d!\n", len);
@@ -117,7 +125,11 @@ void recevoir_reponse_initial(int socket_ct) {
       printf("First thread received command=%d, nb_args=%d\n", header.cmd, header.nb_args);
       switch (header.nb_args) {
         case 1:
-          printf("Requete de commencement execute avec success!\n");
+          printf("Begin a été éxecuté avec success!\n");
+          printf("RNG recu = %d\n", rng);
+          break;
+        case 4:
+          printf("Config a été éxecuté avec success!\n");
           break;
         default: printf("Erreur!!\n"); break;
       }
@@ -129,15 +141,23 @@ void recevoir_reponse_initial(int socket_ct) {
 void envoyer_configuration_initial(int socket_fd) {
 
   // Envoyer la requete pour commencer le serveur
-  int rng = rand(); // random number to send to the server
-  int begin[3] = {0, 1};//, rng};
-  send(socket_fd, begin, sizeof(begin), 0);
+  int rng = 99;//rand(); // random number to send to the server
+  int begin[3] = {0, 1, rng};
 
-  pthread_mutex_lock(&requetes_envoyes);
-  request_sent++;
-  pthread_mutex_unlock(&requetes_envoyes);
+  if (send(socket_fd, begin, sizeof(begin), 0) >= 0) {
+    recevoir_reponse_initial(socket_fd);
+    pthread_mutex_lock(&requetes_envoyes);
+    if (!begin_fait) {
+      request_sent++;
+      begin_fait = true;
+    }
+    pthread_mutex_unlock(&requetes_envoyes);
 
-  recevoir_reponse_initial(socket_fd);
+    int config[7] = {1, 5, 1, 1, 1, 1, 1};
+    send(socket_fd, config, sizeof(config), 0);
+    recevoir_reponse_initial(socket_fd);
+  };
+
 
   /*int *allocations = (int*)malloc(num_resources * sizeof(int));
   int *max = (int*)malloc(num_resources * sizeof(int));
@@ -156,11 +176,11 @@ void envoyer_configuration_initial(int socket_fd) {
   */
 
   int r[4] = {1, 2, 4, 4};
-  send(socket_fd, r, sizeof(r), 0);
-  pthread_mutex_lock(&requetes_envoyes);
-  request_sent++;
-  pthread_mutex_unlock(&requetes_envoyes);
-  recevoir_reponse_initial(socket_fd);
+  //send(socket_fd, r, sizeof(r), 0);
+  //pthread_mutex_lock(&requetes_envoyes);
+  //request_sent++;
+  //pthread_mutex_unlock(&requetes_envoyes);
+  //recevoir_reponse_initial(socket_fd);
 
 }
 

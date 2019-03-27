@@ -58,7 +58,8 @@ int *available;
 //int pthread_mutex_lock (pthread_mutex_t *mutex);
 
 // Mutex
-pthread_mutex_t config_initial;
+pthread_mutex_t debut_fait;
+pthread_mutex_t config_fait;
 
 // verifier si la configuration initial est deja fait
 bool begin_recu = false;
@@ -71,23 +72,33 @@ void process_config_request(int socket_st) {
   struct cmd_header_t header = { .nb_args = 0 };
 
   int len = read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);
-  printf("WOW!\n");
+
+  int rng;
+  if (header.nb_args == 1) {
+    read_socket(socket_st, &rng, sizeof(rng), max_wait_time * 1000);
+  } else { // Pour le reste de numeros il faut faire une boucle
+    for (int i = 0; i < header.nb_args ; ++i) {
+      // Inserer les arguments dans un autre tableau
+
+    }
+  }
+
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
       printf ("Thread received invalid command size=%d!\n", len);
     } else {
       if (header.cmd == 0) {
+        // Error checking
         if (begin_recu) {
           printf("Erreur. Deuxieme BEGIN pas possible");
           int deuxieme_begin[3] = {8, 1, 1};
           send(socket_st, deuxieme_begin, sizeof(deuxieme_begin), 0);
           return;
         }
-        //read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);;
-        int reponse[2] = {4, 1};//, header.cmd};
-        printf("Debut du serveur...\n");
-        //printf("RNG server value = %d\n", header.cmd);
+        printf("Debut du serveur... BEGIN\n");
+        int reponse[3] = {4, 1, rng};
         send(socket_st, reponse, sizeof(reponse), 0 );
+        printf("Envoi de rng = %d\n", rng);
         begin_recu = true;
         return;
       } else if (header.cmd == 1) {
@@ -95,6 +106,7 @@ void process_config_request(int socket_st) {
         printf("Configuration du serveur...\n");
         send(socket_st, ack, sizeof(ack), 0);
         config_recu = true;
+        return;
       } else {
         printf("\n\nElse --->  header.cmd = %d\n\n\n", header.cmd);
         printf("Erreur!!\n");
@@ -124,26 +136,30 @@ st_init ()
   struct sockaddr_in thread_addr;
   socklen_t socket_len = sizeof (thread_addr);
   int thread_socket_fd = -1;
+
   while (thread_socket_fd < 0)
   {
     thread_socket_fd = accept (server_socket_fd, (struct sockaddr *) &thread_addr, &socket_len);
   }
 
   // On fait la configuration initial avec le premier thread
-  pthread_mutex_lock(&config_initial);
-
+  pthread_mutex_lock(&debut_fait);
   if (!begin_recu) {
     process_config_request(thread_socket_fd);
   }
-  pthread_mutex_unlock(&config_initial);
+  pthread_mutex_unlock(&debut_fait);
 
   printf("Begin fait!\n");
 
-  pthread_mutex_lock(&config_initial);
+
+
+  //Il faut lire dans un boucle jusqu'a recevoir les données du client
+  pthread_mutex_lock(&config_fait);
   if (!config_recu) {
     process_config_request(thread_socket_fd);
+    printf("CONFIG");
   }
-  pthread_mutex_unlock(&config_initial);
+  pthread_mutex_unlock(&config_fait);
 
   printf("Config fait!");
 
