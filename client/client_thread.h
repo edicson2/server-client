@@ -30,5 +30,5 @@ void ct_create_and_start (client_thread *);
 void ct_wait_server ();
 
 void st_print_results (FILE *, bool);
-
+void envoie_config(int num_clients);
 #endif // CLIENTTHREAD_H

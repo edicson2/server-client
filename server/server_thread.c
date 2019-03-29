@@ -52,79 +52,140 @@ unsigned int clients_ended = 0;
 
 // TODO: Ajouter vos structures de données partagées, ici.
 int *available;
+int *allocation;
+int *max;
+int *need;
+int *ressource;
 
 
-//int pthread_mutex_init(pthread_mutex_t *restrict mutex, const pthread_mutexattr_t *restrict attr);
-//int pthread_mutex_lock (pthread_mutex_t *mutex);
+/********************************************************************************************************************/
 
-// Mutex
-pthread_mutex_t debut_fait;
-pthread_mutex_t config_fait;
+void recevoir_ressource(int socket_fd){
+  int x=0;
+  int ress[2]={4};
+  struct cmd_header_t header = { .nb_args=0 };
 
-// verifier si la configuration initial est deja fait
-bool begin_recu = false;
-bool config_recu = false;
+  int le = read_socket(socket_fd, &header, sizeof(header),max_wait_time * 1000);
+
+  //ici on va faire une boucle pour initialiser les elements pour l'algo
+  // du banquier;
+
+  //printf("commande %d\n",header.cmd);
 
 
+  if(header.cmd==1){
+    printf("**************************Ressources*************************\n");
+    printf("CONF %d",header.nb_args);
+    for(int i=0; i<header.nb_args; i++){
+      int le=read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
 
-void process_config_request(int socket_st) {
+      printf(" %d",x);
+    }
+    printf("\n");
+
+    send(socket_fd ,&ress, sizeof(ress) ,0);
+  }
+  else if(header.cmd==8){
+
+    printf("ERR\n");
+  }
+  close(socket_fd);
+  //close(server_socket_fd);
+
+
+}
+
+
+void recevoir_beg(int socket_fd){
+  int x=0;
+  printf("************************Initialisation du serveur********************\n\n");
 
   struct cmd_header_t header = { .nb_args = 0 };
 
-  int len = read_socket(socket_st, &header, sizeof(header), max_wait_time * 1000);
-
-  int rng;
-  if (header.nb_args == 1) {
-    read_socket(socket_st, &rng, sizeof(rng), max_wait_time * 1000);
-  } else { // Pour le reste de numeros il faut faire une boucle
-    for (int i = 0; i < header.nb_args ; ++i) {
-      // Inserer les arguments dans un autre tableau
-
+  int ack[3]={ACK,1};
+  //ack[0]=4;
+  int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+  if(len>0){
+    if(header.cmd==BEGIN){
+      int lenn= read_socket(socket_fd, &x, sizeof(x), max_wait_time * 1000);
+      printf("BEGIN %d %d\n",header.nb_args,x);
+      send(socket_fd ,ack, sizeof(ack) ,0);
+      // memset(&header,0,sizeof(header));
+      //recevoir_ressource(socket_fd);
     }
-  }
+    else if(header.cmd==8){
 
-  if (len > 0) {
-    if (len != sizeof(header.cmd) && len != sizeof(header)) {
-      printf ("Thread received invalid command size=%d!\n", len);
-    } else {
-      if (header.cmd == 0) {
-        // Error checking
-        if (begin_recu) {
-          printf("Erreur. Deuxieme BEGIN pas possible");
-          int deuxieme_begin[3] = {8, 1, 1};
-          send(socket_st, deuxieme_begin, sizeof(deuxieme_begin), 0);
-          return;
-        }
-        printf("Debut du serveur... BEGIN\n");
-        int reponse[3] = {4, 1, rng};
-        send(socket_st, reponse, sizeof(reponse), 0 );
-        printf("Envoi de rng = %d\n", rng);
-        begin_recu = true;
-        return;
-      } else if (header.cmd == 1) {
-        int ack[2] = {4, 1};
-        printf("Configuration du serveur...\n");
-        send(socket_st, ack, sizeof(ack), 0);
-        config_recu = true;
-        return;
-      } else {
-        printf("\n\nElse --->  header.cmd = %d\n\n\n", header.cmd);
-        printf("Erreur!!\n");
-      }
-      // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
+      printf("ERR\n");
     }
-  } else {
-    if (len == 0) {
-      fprintf(stderr, "Thread connection timeout\n");
-    }
-  }
-//
+  }else{}
+  close(socket_fd);
+  //close(server_socket_fd);
+
 }
+
+
+
+
+
+void gerer_ini(int socket_fd,int cmd,int nb_args){
+
+
+  int x=-11;
+
+  if(cmd==INIT){
+    //printf("************************INI********************\n\n");
+    printf("INIT");
+    for(int i=0; i<nb_args+1; ++i){
+      int len = read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
+
+      printf(" %d",x);
+
+    }
+    printf("\n");
+    printf("Sending reponse de INIT\n");
+    //int ack[2] = {4, 0};
+    //send(socket_fd ,ack, sizeof(ack) ,0);
+  } else if(cmd==REQ){
+
+    for(int i=0; i<nb_args+1; ++i){
+      int le=read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
+
+      printf(" %d",x);
+
+    }
+    printf("\n");
+    int ack[2] = {4, 0};
+    printf("Sending ACK 0..\n");
+    send(socket_fd ,ack, sizeof(ack) ,0);
+
+  }
+  else{
+    printf("ERR\n");
+    //Emvoyer erreur.
+  }
+
+}
+
+
+int accepte_ct(){
+  struct sockaddr_in thread_addr;
+  socklen_t socket_len = sizeof (thread_addr);
+  int thread_socket_fd = -1;
+  while (thread_socket_fd < 0)
+  {
+    thread_socket_fd = accept (server_socket_fd, (struct sockaddr *) &thread_addr, &socket_len);
+  }
+  return thread_socket_fd;
+}
+
+
+
+/********************************************************************************************************************/
+
 
 void
 st_init ()
 {
-
   // Initialise le nombre de clients connecté.
   nb_registered_clients = 0;
 
@@ -133,68 +194,59 @@ st_init ()
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
 
-  struct sockaddr_in thread_addr;
-  socklen_t socket_len = sizeof (thread_addr);
-  int thread_socket_fd = -1;
-
-  while (thread_socket_fd < 0)
-  {
-    thread_socket_fd = accept (server_socket_fd, (struct sockaddr *) &thread_addr, &socket_len);
-  }
-
-  // On fait la configuration initial avec le premier thread
-  pthread_mutex_lock(&debut_fait);
-  if (!begin_recu) {
-    process_config_request(thread_socket_fd);
-    process_config_request(thread_socket_fd);
-  }
-  pthread_mutex_unlock(&debut_fait);
-
-  printf("Begin fait!\n");
-  printf("Config fait!\n");
-
-
   // END TODO
-}
+  int socket=accepte_ct();
 
+  recevoir_beg(socket);
+
+  socket=accepte_ct();
+
+  recevoir_ressource(socket);
+//close(thread_socket_fd);
+//close(socket);
+}
 
 void
 st_process_requests (server_thread * st, int socket_fd)
 {
   // TODO: Remplacer le contenu de cette fonction
-  struct pollfd fds[1];
-  fds->fd = socket_fd;
-  fds->events = POLLIN;
-  fds->revents = 0;
 
 
   struct cmd_header_t header = { .nb_args = 0 };
 
-  int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+  int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
 
-  if (len > 0) {
-    if (len != sizeof(header.cmd) && len != sizeof(header)) {
-      //printf ("Thread %d received invalid command size=%d!\n", st->id, len);
-    } else {
-      //printf("Thread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
-      switch (header.cmd) {
-        case 0:
-          //printf("Value received is %d\n", header.cmd);
+  int i=0;
 
-          break;
-        case 1: printf("CONFIGURATION!\n"); break;
-        case 2: printf("INITIALIZATION\n"); break;
-        case 3: printf("REQUETE\n"); break;
-        case 6: printf("END\n"); break;
-        case 7: printf("CLOSE\n"); break;
-        default: printf("Erreur!!\n"); break;
+  while (i < 3) {
+
+    if (len > 0) {
+
+      if (len != sizeof(header.cmd) && len != sizeof(header)) {
+        printf ("Thread %d received invalid command size=%d!\n", st->id, len);
+
       }
-      // dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
+
+      printf("\nThread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
+      //dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
+      //if(header.cmd==INIT){
+      gerer_ini(socket_fd,header.cmd,header.nb_args);
+
+      //}
+      //else if(header.cmd==REQ){
+
+      //gerer_ini(socket_fd,header.cmd,header.nb_args);
+
+      //i=i+1;
+      //}
+
+    } else {
+      if (len == 0) {
+        fprintf(stderr, "Thread %d, connection timeout\n", st->id);
+      }
+      printf("i= %d\n",i);
     }
-  } else {
-    if (len == 0) {
-      fprintf(stderr, "Thread %d, connection timeout\n", st->id);
-    }
+    ++i;
   }
 }
 
@@ -203,7 +255,7 @@ void
 st_signal ()
 {
   // TODO: Remplacer le contenu de cette fonction
-  // On doit impĺementer END ici
+
 
 
   // TODO end
@@ -264,7 +316,7 @@ st_open_socket (int port_number)
   if (server_socket_fd < 0)
     perror ("ERROR opening socket");
 
-  if (setsockopt(server_socket_fd, SOL_SOCKET, SO_REUSEPORT, &(int){ 1 }, sizeof(int)) < 0) {
+  if (setsockopt(server_socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0) {
     perror("setsockopt()");
     exit(1);
   }
