@@ -146,22 +146,12 @@ st_init ()
   pthread_mutex_lock(&debut_fait);
   if (!begin_recu) {
     process_config_request(thread_socket_fd);
+    process_config_request(thread_socket_fd);
   }
   pthread_mutex_unlock(&debut_fait);
 
   printf("Begin fait!\n");
-
-
-
-  //Il faut lire dans un boucle jusqu'a recevoir les données du client
-  pthread_mutex_lock(&config_fait);
-  if (!config_recu) {
-    process_config_request(thread_socket_fd);
-    printf("CONFIG");
-  }
-  pthread_mutex_unlock(&config_fait);
-
-  printf("Config fait!");
+  printf("Config fait!\n");
 
 
   // END TODO

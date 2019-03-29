@@ -38,6 +38,7 @@ unsigned int request_sent = 0;
 
 
 bool begin_fait = false;
+bool config_fait = false;
 
 
 // Mutex
@@ -141,22 +142,25 @@ void recevoir_reponse_initial(int socket_ct) {
 void envoyer_configuration_initial(int socket_fd) {
 
   // Envoyer la requete pour commencer le serveur
-  int rng = 99;//rand(); // random number to send to the server
+  int rng = 99;
   int begin[3] = {0, 1, rng};
+  int config[7] = {1, 5, 1, 1, 1, 1, 1};
 
-  if (send(socket_fd, begin, sizeof(begin), 0) >= 0) {
-    recevoir_reponse_initial(socket_fd);
-    pthread_mutex_lock(&requetes_envoyes);
-    if (!begin_fait) {
-      request_sent++;
-      begin_fait = true;
-    }
-    pthread_mutex_unlock(&requetes_envoyes);
+  send(socket_fd, begin, sizeof(begin), 0);
+  recevoir_reponse_initial(socket_fd);
 
-    int config[7] = {1, 5, 1, 1, 1, 1, 1};
-    send(socket_fd, config, sizeof(config), 0);
-    recevoir_reponse_initial(socket_fd);
-  };
+  send(socket_fd, config, sizeof(config), 0);
+  recevoir_reponse_initial(socket_fd);
+
+  // Mise a jour des nombre de requetes
+  pthread_mutex_lock(&requetes_envoyes);
+  if (!begin_fait && !config_fait) {
+    request_sent +=2;
+    begin_fait = true;
+    config_fait = true;
+  }
+  pthread_mutex_unlock(&requetes_envoyes);
+
 
 
   /*int *allocations = (int*)malloc(num_resources * sizeof(int));
@@ -175,7 +179,7 @@ void envoyer_configuration_initial(int socket_fd) {
   sprintf(conf, "%s\n", conf);
   */
 
-  int r[4] = {1, 2, 4, 4};
+  //int r[4] = {1, 2, 4, 4};
   //send(socket_fd, r, sizeof(r), 0);
   //pthread_mutex_lock(&requetes_envoyes);
   //request_sent++;
@@ -199,8 +203,11 @@ ct_code (void *param)
   socket_fd = creer_socket();
   connect_ct(socket_fd);
 
-  envoyer_configuration_initial(socket_fd);
-
+  //pthread_mutex_lock(&init)
+  if(!begin_fait && !config_fait) {
+    envoyer_configuration_initial(socket_fd);
+  }
+  //pthread_mutex_unlock(&init)
 
 
 
