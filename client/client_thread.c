@@ -114,6 +114,13 @@ void recevoir_reponse_initial(int socket_ct) {
   if (header.nb_args == 1) {
     read_socket(socket_ct, &rng, sizeof(rng), 30 * 1000);
   }
+  if (header.nb_args > 1) {
+    void *args = malloc(header.nb_args * sizeof(header.nb_args));
+    for (int i = 0; i < header.nb_args ; ++i) {
+      read_socket(socket_ct, &args[i], sizeof(args[i]), 30 * 1000);
+    }
+
+  }
 
   if (len > 0) {
     if (len != sizeof(header.cmd) && len != sizeof(header)) {
