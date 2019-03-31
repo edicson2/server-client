@@ -180,7 +180,7 @@ void envoyer_INI(int socket,int id, int cmd){
 
   if(len>0) {
     if (header.cmd == ACK) {
-      printf("ACK\n\n");
+      printf("ACK \n");
     }
   } else{
     printf("Pas de reponse!\n");
@@ -204,10 +204,8 @@ send_request (int client_id, int request_id, int socket_fd) {
   //fprintf (stdout, "Client %d is sending its %d request\n", client_id,
   // request_id);
 
-//int* envoi=envoyer_requette(socket_fd,client_id);
-//int envoi[5]={3,4,5,6,8};
-//send(socket_fd,tab,sizeof(tab),0);
-//printf(" test\n");
+  envoyer_INI(socket_fd, client_id, REQ);
+
   // TP2 TODO:END
 
 }
@@ -229,20 +227,20 @@ ct_code (void *param)
   // printf("***********************Usage maximum**********************\n");
   envoyer_INI(socket_fd,ct->id, INIT);
 
-  //envoyer_INI(socket_fd, ct->id, REQ);
-  //int *tab = envoyer_requette(socket_fd, ct->id);
   int tab[3] = {REQ, 1, rand()};
+
   for (unsigned int request_id = 0; request_id < num_request_per_client;
        request_id++) {
-
+    socket_fd=connect_ct();
     // TP2 TODO
     // Vous devez ici coder, conjointement avec le corps de send request,
     // le protocole d'envoi de requête.
     //printf("Sending REQ\n");
     //envoyer_INI(socket_fd, ct->id, REQ);
 
-    send(socket_fd, tab, sizeof(tab), 0);
-    //send_request (ct->id, request_id, socket_fd);
+    //send(socket_fd, tab, sizeof(tab), 0);
+    //envoyer_INI(socket_fd,ct->id,  REQ);
+    send_request (ct->id, request_id, socket_fd);
 
 
     // TP2 TODO:END

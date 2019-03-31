@@ -51,11 +51,22 @@ unsigned int request_processed = 0;
 unsigned int clients_ended = 0;
 
 // TODO: Ajouter vos structures de données partagées, ici.
+int nombre_ressources;
+
 int *available;
 int *allocation;
 int *max;
 int *need;
 int *ressource;
+
+
+// Mutex
+pthread_mutex_t accepte_sans_delai;
+pthread_mutex_t accepte_avec_delai;
+pthread_mutex_t erreur_apres_requete;
+pthread_mutex_t client_finis_correctement;
+pthread_mutex_t requetes_proceses;
+
 
 
 /********************************************************************************************************************/
@@ -65,36 +76,38 @@ void recevoir_ressource(int socket_fd){
   int ress[2]={4};
   struct cmd_header_t header = { .nb_args=0 };
 
-  int le = read_socket(socket_fd, &header, sizeof(header),max_wait_time * 1000);
+  int len = read_socket(socket_fd, &header, sizeof(header),max_wait_time * 1000);
+  if (len > 0) {
 
-  //ici on va faire une boucle pour initialiser les elements pour l'algo
-  // du banquier;
+    // TODO Liberer max avant de la fin de l'algorithme
+    available = malloc(header.nb_args * sizeof(int));
 
-  //printf("commande %d\n",header.cmd);
+    if(header.cmd==1){
 
+      request_processed++;
 
-  if(header.cmd==1){
-    printf("**************************Ressources*************************\n");
-    printf("CONF %d",header.nb_args);
-    for(int i=0; i<header.nb_args; i++){
-      int le=read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
+      printf("**************************Ressources*************************\n");
+      printf("CONF %d",header.nb_args);
+      for(int i=0; i<header.nb_args; i++){
+        read_socket(socket_fd,&available[i],sizeof(available[i]),max_wait_time*1000);
+        //printf(" %d",x);
+      }
+      printf("\n");
 
-      printf(" %d",x);
+      count_accepted++;
+
+      send(socket_fd ,&ress, sizeof(ress) ,0);
     }
-    printf("\n");
+    else if(header.cmd==8){
+      printf("ERR\n");
+    } else {
 
-    send(socket_fd ,&ress, sizeof(ress) ,0);
+    }
+    close(socket_fd);
+  } else {
+    printf("Echec dans la configuration...\n");
   }
-  else if(header.cmd==8){
-
-    printf("ERR\n");
-  }
-  close(socket_fd);
-  //close(server_socket_fd);
-
-
 }
-
 
 void recevoir_beg(int socket_fd){
   int x=0;
@@ -103,59 +116,60 @@ void recevoir_beg(int socket_fd){
   struct cmd_header_t header = { .nb_args = 0 };
 
   int ack[3]={ACK,1};
-  //ack[0]=4;
+
   int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
   if(len>0){
+
+    request_processed++;
+
     if(header.cmd==BEGIN){
       int lenn= read_socket(socket_fd, &x, sizeof(x), max_wait_time * 1000);
       printf("BEGIN %d %d\n",header.nb_args,x);
+
+      count_accepted++;
+
       send(socket_fd ,ack, sizeof(ack) ,0);
       // memset(&header,0,sizeof(header));
       //recevoir_ressource(socket_fd);
-    }
-    else if(header.cmd==8){
-
+    } else {
       printf("ERR\n");
     }
-  }else{}
+  }else{
+    printf("Echec dans le debut...\n");
+  }
   close(socket_fd);
   //close(server_socket_fd);
 
 }
 
-
-
-
-
 void gerer_ini(int socket_fd,int cmd,int nb_args){
-
 
   int x=-11;
 
   if(cmd==INIT){
     //printf("************************INI********************\n\n");
-    printf("INIT");
+    //printf("INIT");
     for(int i=0; i<nb_args+1; ++i){
       int len = read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
 
-      printf(" %d",x);
+      //printf(" %d",x);
 
     }
-    printf("\n");
-    printf("Sending reponse de INIT\n");
-    //int ack[2] = {4, 0};
-    //send(socket_fd ,ack, sizeof(ack) ,0);
+    //printf("\n");
+    //printf("Sending reponse de INIT\n");
+    int ack[2] = {4, 0};
+    send(socket_fd ,ack, sizeof(ack) ,0);
   } else if(cmd==REQ){
 
     for(int i=0; i<nb_args+1; ++i){
-      int le=read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
+      int len=read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
 
-      printf(" %d",x);
+      //printf(" %d",x);
 
     }
-    printf("\n");
-    int ack[2] = {4, 0};
-    printf("Sending ACK 0..\n");
+    //printf("\n");
+    int ack[2] = {4, 1};
+    //printf("Sending ACK 0..\n");
     send(socket_fd ,ack, sizeof(ack) ,0);
 
   }
@@ -178,10 +192,7 @@ int accepte_ct(){
   return thread_socket_fd;
 }
 
-
-
 /********************************************************************************************************************/
-
 
 void
 st_init ()
@@ -193,8 +204,6 @@ st_init ()
 
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
-
-  // END TODO
   int socket=accepte_ct();
 
   recevoir_beg(socket);
@@ -202,6 +211,8 @@ st_init ()
   socket=accepte_ct();
 
   recevoir_ressource(socket);
+  // END TODO
+
 //close(thread_socket_fd);
 //close(socket);
 }
@@ -211,42 +222,30 @@ st_process_requests (server_thread * st, int socket_fd)
 {
   // TODO: Remplacer le contenu de cette fonction
 
-
   struct cmd_header_t header = { .nb_args = 0 };
 
   int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
 
-  int i=0;
-
-  while (i < 3) {
-
-    if (len > 0) {
-
+  if (len > 0) {
+    if (header.cmd != END) {
       if (len != sizeof(header.cmd) && len != sizeof(header)) {
         printf ("Thread %d received invalid command size=%d!\n", st->id, len);
-
       }
 
       printf("\nThread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
-      //dispatch of cmd void thunk(int sockfd, struct cmd_header* header);
-      //if(header.cmd==INIT){
-      gerer_ini(socket_fd,header.cmd,header.nb_args);
-
-      //}
-      //else if(header.cmd==REQ){
-
-      //gerer_ini(socket_fd,header.cmd,header.nb_args);
-
-      //i=i+1;
-      //}
+      //printf("header.nbargs = %d\n", header.nb_args);
+      if (header.nb_args > 0) {
+        gerer_ini(socket_fd,header.cmd,header.nb_args);
+      }
 
     } else {
-      if (len == 0) {
-        fprintf(stderr, "Thread %d, connection timeout\n", st->id);
-      }
-      printf("i= %d\n",i);
+      // finir l'execution du serveur
     }
-    ++i;
+
+  } else {
+    if (len == 0) {
+      fprintf(stderr, "Thread %d, connection timeout\n", st->id);
+    }
   }
 }
 
