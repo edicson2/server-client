@@ -136,9 +136,9 @@ void envoie_config(int nb_cl){
   int socket_fd=connect_ct();
   envoyer_begin(socket_fd,nb_cl);
 
-  int socket1_fd=connect_ct();
+  socket_fd=connect_ct();
 
-  envoyer_ressource(socket1_fd);
+  envoyer_ressource(socket_fd);
 
 }
 

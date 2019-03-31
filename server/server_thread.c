@@ -53,6 +53,21 @@ unsigned int clients_ended = 0;
 // TODO: Ajouter vos structures de données partagées, ici.
 int nombre_ressources;
 
+
+/*
+ * n  = number of threads
+ * m = number of ressources
+ * available = vector of length m
+ * max = [n][m] = process n can request at most k instances
+ *                of ressource m
+ * allocation = [n][m] = process n has k instaces of
+ *                the ressouce m
+ * nees = [n][m] = process n may need k instances of
+ *                the ressource m. We need to calculate it
+ *                need[i][j] = max[i][j] - allocation[i][j]
+ *  (available + allocation = new_available)
+ *
+ * */
 int *available;
 int *allocation;
 int *max;
@@ -71,9 +86,10 @@ pthread_mutex_t requetes_proceses;
 
 /********************************************************************************************************************/
 
-void recevoir_ressource(int socket_fd){
-  int x=0;
-  int ress[2]={4};
+int recevoir_ressource(int socket_fd){
+
+  int ress[1]={ACK};
+  int stat = 0;
   struct cmd_header_t header = { .nb_args=0 };
 
   int len = read_socket(socket_fd, &header, sizeof(header),max_wait_time * 1000);
@@ -85,52 +101,48 @@ void recevoir_ressource(int socket_fd){
     if(header.cmd==1){
 
       request_processed++;
-
       printf("**************************Ressources*************************\n");
-      printf("CONF %d",header.nb_args);
+      //printf("CONF %d",header.nb_args);
       for(int i=0; i<header.nb_args; i++){
         read_socket(socket_fd,&available[i],sizeof(available[i]),max_wait_time*1000);
-        //printf(" %d",x);
+        //printf(" %d - ",available[i]);
       }
-      printf("\n");
+      //printf("\n");
 
       count_accepted++;
 
       send(socket_fd ,&ress, sizeof(ress) ,0);
-    }
-    else if(header.cmd==8){
-      printf("ERR\n");
     } else {
-
+      printf("ERR\n");
+      stat = -1;
     }
-    close(socket_fd);
   } else {
     printf("Echec dans la configuration...\n");
+    stat = -1;
   }
+  close(socket_fd);
+  return stat;
 }
 
 void recevoir_beg(int socket_fd){
-  int x=0;
+  int rng=0;
   printf("************************Initialisation du serveur********************\n\n");
 
   struct cmd_header_t header = { .nb_args = 0 };
 
-  int ack[3]={ACK,1};
-
   int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+
   if(len>0){
 
-    request_processed++;
-
     if(header.cmd==BEGIN){
-      int lenn= read_socket(socket_fd, &x, sizeof(x), max_wait_time * 1000);
-      printf("BEGIN %d %d\n",header.nb_args,x);
+      request_processed++;
+      int len2 = read_socket(socket_fd, &rng, sizeof(rng), max_wait_time * 1000);
+      printf("BEGIN nb.args=%d  rng=%d\n",header.nb_args, rng);
 
       count_accepted++;
 
+      int ack[3]={ACK,1, rng};
       send(socket_fd ,ack, sizeof(ack) ,0);
-      // memset(&header,0,sizeof(header));
-      //recevoir_ressource(socket_fd);
     } else {
       printf("ERR\n");
     }
@@ -138,7 +150,6 @@ void recevoir_beg(int socket_fd){
     printf("Echec dans le debut...\n");
   }
   close(socket_fd);
-  //close(server_socket_fd);
 
 }
 
@@ -210,7 +221,10 @@ st_init ()
 
   socket=accepte_ct();
 
-  recevoir_ressource(socket);
+  if (recevoir_ressource(socket) < 0) {
+    exit(1);
+  }
+
   // END TODO
 
 //close(thread_socket_fd);
@@ -255,6 +269,8 @@ st_signal ()
 {
   // TODO: Remplacer le contenu de cette fonction
 
+
+  free(available);
 
 
   // TODO end
