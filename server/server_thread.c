@@ -73,7 +73,7 @@ int **allocation;
 int **max;
 int **need;
 
-int *ressource;
+//int *ressource;
 
 
 // Mutex
@@ -96,10 +96,11 @@ void initialiser_tableaux (int nb_clients, int nb_ressources) {
   max = malloc(sizeof(int*) * nb_clients);
   need = malloc(sizeof(int*) * nb_clients);
 
+  // on doit inclure l'identificateur du thread
   for (int i = 0; i < nb_ressources; ++i) {
-    allocation[i] = malloc(sizeof(int) * nb_ressources);
-    max[i] = malloc(sizeof(int) * nb_ressources);
-    need[i] = malloc(sizeof(int) * nb_ressources);
+    allocation[i] = malloc(sizeof(int) * (nb_ressources + 1));
+    max[i] = malloc(sizeof(int) * (nb_ressources + 1));
+    need[i] = malloc(sizeof(int) * (nb_ressources + 1));
   }
 
 }
@@ -195,30 +196,38 @@ int recevoir_beg(int socket_fd){
 
 void gerer_ini(int socket_fd,int cmd,int nb_args){
 
-  int x=-11;
+  int ressource=0;
+  bool lecture = true;
 
   if(cmd==INIT && nb_args > 0){
     //printf("************************INI********************\n\n");
     //printf("INIT");
-    // on ajoute les ressouces maximales pour le thread
-    pthread_mutex_lock(&max_modifie);
+    int process_id;
+    read_socket(socket_fd,&process_id,sizeof(process_id),max_wait_time*1000);
 
-    pthread_mutex_unlock(&max_modifie);
+    for(int i=0; i<nb_args; ++i){
+      int len = read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
+      if (len > 0) {
 
-    for(int i=0; i<nb_args+1; ++i){
-      int len = read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
+        // Modification du tableau global avec les ressources maximales
+        pthread_mutex_lock(&max_modifie);
+        max[process_id][i] = ressource;
+        pthread_mutex_unlock(&max_modifie);
 
-      //printf(" %d",x);
-
+      } else {
+        printf("Erreur de lecture...\n");
+        lecture = false;
+        break;
+      }
     }
-    //printf("\n");
-    //printf("Sending reponse de INIT\n");
-    int ack[2] = {4, 0};
-    send(socket_fd ,ack, sizeof(ack) ,0);
+    if (lecture) {
+      int ack[2] = {4, 0};
+      send(socket_fd ,ack, sizeof(ack) ,0);
+    }
   } else if(cmd==REQ){
 
     for(int i=0; i<nb_args+1; ++i){
-      int len=read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
+      int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
 
       //printf(" %d",x);
 
@@ -285,19 +294,20 @@ st_process_requests (server_thread * st, int socket_fd)
   int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
 
   if (len > 0) {
-    if (header.cmd != END) {
-      if (len != sizeof(header.cmd) && len != sizeof(header)) {
-        printf ("Thread %d received invalid command size=%d!\n", st->id, len);
-      }
-
-      printf("\nThread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
-      //printf("header.nbargs = %d\n", header.nb_args);
-      if (header.nb_args > 0) {
-        gerer_ini(socket_fd,header.cmd,header.nb_args);
-      }
-
+    if (len != sizeof(header.cmd) && len != sizeof(header)) {
+      printf ("Thread %d received invalid command size=%d!\n", st->id, len);
     } else {
-      // finir l'execution du thread serveur
+      printf("\nThread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
+      if (header.cmd != END) {
+
+        if (header.nb_args > 0) {
+          gerer_ini(socket_fd,header.cmd,header.nb_args);
+        }
+
+      } else {
+        // finir l'execution du thread serveur
+      }
+
     }
 
   } else {
