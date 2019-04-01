@@ -68,13 +68,14 @@ int nombre_clients;
  *  (available + allocation = new_available)
  *
  * */
-int *available;
-int **allocation;
-int **max;
-int **need;
+int *available;     // DONE!
+int **allocation;   //
+int **max;          // DONE!
+int **need;         //
 
 //int *ressource;
-
+int count = 0; // verifier si tous les clients ont ete testes
+int safe_state = 0;
 
 // Mutex
 pthread_mutex_t accepte_sans_delai;
@@ -83,6 +84,9 @@ pthread_mutex_t erreur_apres_requete;
 pthread_mutex_t client_finis_correctement;
 pthread_mutex_t requetes_proceses;
 
+
+pthread_mutex_t available_modifie;
+pthread_mutex_t alloc_modifie;
 pthread_mutex_t max_modifie;
 
 
@@ -91,6 +95,7 @@ pthread_mutex_t max_modifie;
 void initialiser_tableaux (int nb_clients, int nb_ressources) {
 
   available = malloc(nb_ressources * sizeof(int));
+  count = nb_clients; // TODO verifier si c'est util
 
   allocation = malloc(sizeof(int*) * nb_clients);
   max = malloc(sizeof(int*) * nb_clients);
@@ -194,24 +199,54 @@ int recevoir_beg(int socket_fd){
 
 }
 
+void calculer_need (int id, int ressource) {
+
+}
+
+void safety_algo (int ct_id, int nb_ressources) {
+
+  int work[nb_ressources];
+  bool finish[nb_ressources];
+
+  for (int i = 0; i < nb_ressources; ++i) {
+    pthread_mutex_lock(&available_modifie);
+    work[i] = available[ct_id];
+    pthread_mutex_unlock(&available_modifie);
+    finish[i] = false;
+  }
+
+}
+
+void demande_ressources (int ct_id) {
+
+}
+
+void bankers_algorithm (int nb_ressources) {
+
+}
+
 void gerer_ini(int socket_fd,int cmd,int nb_args){
 
   int ressource=0;
   bool lecture = true;
+  int process_id = -1;
+  int length = 0;
 
-  if(cmd==INIT && nb_args > 0){
-    //printf("************************INI********************\n\n");
-    //printf("INIT");
-    int process_id;
-    read_socket(socket_fd,&process_id,sizeof(process_id),max_wait_time*1000);
+  if (nb_args > 0) {
+    // obtenir l'id du thread
+    length = read_socket(socket_fd,&process_id,sizeof(process_id),max_wait_time*1000);
+  }
+
+  if(cmd==INIT && length >0){
 
     for(int i=0; i<nb_args; ++i){
       int len = read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
 
-        // Modification du tableau global avec les ressources maximales
         pthread_mutex_lock(&max_modifie);
         max[process_id][i] = ressource;
+        allocation[process_id][i] = 0;
+        need[process_id][i] = max[process_id][i] - allocation[process_id][i];
         pthread_mutex_unlock(&max_modifie);
 
       } else {
@@ -224,22 +259,36 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
       int ack[2] = {4, 0};
       send(socket_fd ,ack, sizeof(ack) ,0);
     }
-  } else if(cmd==REQ){
 
-    for(int i=0; i<nb_args+1; ++i){
+  } else if(cmd==REQ && length >0){
+
+    for(int i=0; i<nb_args; ++i){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
+      if (len > 0) {
 
-      //printf(" %d",x);
+        // Banker's Algorithm
 
+          // Safety algorithm
+          safety_algo(process_id, nb_args+1);
+
+          // Ressource request algorithm
+
+
+      } else {
+        printf("Erreur de lecture...\n");
+        lecture = false;
+        break;
+      }
     }
-    //printf("\n");
-    int ack[2] = {4, 1};
-    //printf("Sending ACK 0..\n");
-    send(socket_fd ,ack, sizeof(ack) ,0);
-
+    if (lecture) {
+      int ack[2] = {4, 1};
+      send(socket_fd ,ack, sizeof(ack) ,0);
+    }
   }
   else{
     printf("ERR\n");
+    int err[2] = {8, 0};
+    send(socket_fd, &err, sizeof(err), 0);
     //Emvoyer erreur.
   }
 
