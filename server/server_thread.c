@@ -74,8 +74,7 @@ int **max;          // DONE!
 int **need;         //
 
 //int *ressource;
-int count = 0; // verifier si tous les clients ont ete testes
-int safe_state = 0;
+int count_ct = 0;
 
 // Mutex
 pthread_mutex_t accepte_sans_delai;
@@ -89,13 +88,14 @@ pthread_mutex_t available_modifie;
 pthread_mutex_t alloc_modifie;
 pthread_mutex_t max_modifie;
 
+pthread_mutex_t count_modifie;
+
 
 /********************************************************************************************************************/
 
 void initialiser_tableaux (int nb_clients, int nb_ressources) {
 
   available = malloc(nb_ressources * sizeof(int));
-  count = nb_clients; // TODO verifier si c'est util
 
   allocation = malloc(sizeof(int*) * nb_clients);
   max = malloc(sizeof(int*) * nb_clients);
@@ -199,22 +199,97 @@ int recevoir_beg(int socket_fd){
 
 }
 
-void calculer_need (int id, int ressource) {
-
+void calculer_need () {
+  for (int i = 0; i < count_ct; ++i) {
+    for (int j = 0; j < nombre_ressources; ++j) {
+      need[i][j] = max[i][j] - allocation[i][j];
+    }
+  }
 }
 
-void safety_algo (int ct_id, int nb_ressources) {
+bool safe_state (int ct_id) {
 
-  int work[nb_ressources];
-  bool finish[nb_ressources];
+  int work[nombre_ressources];
+  bool finish[count_ct];
 
-  for (int i = 0; i < nb_ressources; ++i) {
+  int safeSeq[count_ct];
+
+  for (int i = 0; i < nombre_ressources; ++i) {
     pthread_mutex_lock(&available_modifie);
-    work[i] = available[ct_id];
+    work[i] = available[i];
     pthread_mutex_unlock(&available_modifie);
     finish[i] = false;
   }
 
+  int count = 0;
+  while (count < count_ct) {
+
+    bool found = false;
+    for (int i = 0; i < count_ct; ++i) {
+
+      if ( finish[i] == 0 ) {
+
+        int j;
+
+        for (j = 0; j < nombre_ressources; ++j) {
+          if (need[i][j] > work[j]) {
+            break;
+          }
+        }
+
+        if (j == nombre_ressources) {
+
+          for (int k = 0; k < nombre_ressources; ++k) {
+            work[k] += allocation[i][k];
+          }
+
+          safeSeq[count++] = i;
+          finish[i] = 1;
+          found = true;
+        }
+      }
+    }
+    if (!found) {
+      return false;
+    }
+
+    /*int i;
+    bool success = false;
+
+    for (i = 0; i < count_ct; ++i) {
+      if (!finish[i]) {
+        bool sub_success = true;
+        for (int j = 0; j < nb_ressources; ++j) {
+          if (need[i][j] > work[j]) {
+            sub_success = false;
+            break;
+          }
+        }
+        if (sub_success) {
+          success = true;
+          break;
+        }
+      }
+    }
+    if (!success) {
+      success = true;
+      for (int i = 0; i < count_ct; ++i) {
+        if (!finish[i]) {
+          success = false;
+          break;
+        }
+      }
+      if (success) {
+        return true;
+      } else return false;
+    } else {
+      for (int j = 0; j < nb_ressources; ++j) {
+        work[i] += allocation[i][j];
+      }
+      finish[i] = true;
+    }*/
+  }
+  return true;
 }
 
 void demande_ressources (int ct_id) {
@@ -249,6 +324,10 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
         need[process_id][i] = max[process_id][i] - allocation[process_id][i];
         pthread_mutex_unlock(&max_modifie);
 
+        pthread_mutex_lock(&count_modifie);
+        count_ct++;
+        pthread_mutex_unlock(&count_modifie);
+
       } else {
         printf("Erreur de lecture...\n");
         lecture = false;
@@ -268,8 +347,8 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
 
         // Banker's Algorithm
 
-          // Safety algorithm
-          safety_algo(process_id, nb_args+1);
+
+          //safety_algo(process_id, nb_args+1);
 
           // Ressource request algorithm
 
