@@ -68,12 +68,14 @@ int nombre_clients;
  *  (available + allocation = new_available)
  *
  * */
-int *available;     // DONE!
-int **allocation;   //
+int *ressources;
 int **max;          // DONE!
+int **allocation;   //
 int **need;         //
+int *available;     //
 
-//int *ressource;
+
+
 int count_ct = 0;
 
 // Mutex
@@ -83,10 +85,11 @@ pthread_mutex_t erreur_apres_requete;
 pthread_mutex_t client_finis_correctement;
 pthread_mutex_t requetes_proceses;
 
-
+pthread_mutex_t ressources_modifie;
 pthread_mutex_t available_modifie;
-pthread_mutex_t alloc_modifie;
+pthread_mutex_t allocation_modifie;
 pthread_mutex_t max_modifie;
+pthread_mutex_t need_modifie;
 
 pthread_mutex_t count_modifie;
 
@@ -95,17 +98,18 @@ pthread_mutex_t count_modifie;
 
 void initialiser_tableaux (int nb_clients, int nb_ressources) {
 
-  available = malloc(nb_ressources * sizeof(int));
-
-  allocation = malloc(sizeof(int*) * nb_clients);
   max = malloc(sizeof(int*) * nb_clients);
+  allocation = malloc(sizeof(int*) * nb_clients);
   need = malloc(sizeof(int*) * nb_clients);
+
+  available = malloc(nb_ressources * sizeof(int));
 
   // on doit inclure l'identificateur du thread
   for (int i = 0; i < nb_ressources; ++i) {
-    allocation[i] = malloc(sizeof(int) * (nb_ressources + 1));
     max[i] = malloc(sizeof(int) * (nb_ressources + 1));
+    allocation[i] = malloc(sizeof(int) * (nb_ressources + 1));
     need[i] = malloc(sizeof(int) * (nb_ressources + 1));
+
   }
 
 }
@@ -113,15 +117,16 @@ void initialiser_tableaux (int nb_clients, int nb_ressources) {
 void liberer_tableaux (int nb_ressources) {
 
   for (int i = 0; i < nb_ressources; ++i) {
-    free(allocation[i]);
     free(max[i]);
+    free(allocation[i]);
     free(need[i]);
   }
 
-  free(available);
-  free(allocation);
   free(max);
+  free(allocation);
   free(need);
+
+  free(available);
 }
 
 int recevoir_ressource(int socket_fd){
@@ -142,11 +147,10 @@ int recevoir_ressource(int socket_fd){
       nombre_clients = 5; // TODO Trouver le nombre de clients
       initialiser_tableaux(nombre_clients, nombre_ressources);
 
+      // Remplir le tableau des ressources disponibles
       for(int i=0; i<nombre_ressources; i++){
-        read_socket(socket_fd,&available[i],sizeof(available[i]),max_wait_time*1000);
-        //printf(" %d - ",available[i]);
+        read_socket(socket_fd,&ressources[i],sizeof(ressources[i]),max_wait_time*1000);
       }
-      //printf("\n");
 
       count_accepted++;
 
@@ -199,106 +203,46 @@ int recevoir_beg(int socket_fd){
 
 }
 
-void calculer_need () {
+void calculer_need (int process_id) {
   for (int i = 0; i < count_ct; ++i) {
-    for (int j = 0; j < nombre_ressources; ++j) {
-      need[i][j] = max[i][j] - allocation[i][j];
-    }
+      need[process_id][i] = max[process_id][i] - allocation[process_id][i];
   }
 }
 
-bool safe_state (int ct_id) {
+//void calculer available ()
+
+// TODO Verifier
+bool safe_state () {
 
   int work[nombre_ressources];
   bool finish[count_ct];
 
-  int safeSeq[count_ct];
-
-  for (int i = 0; i < nombre_ressources; ++i) {
-    pthread_mutex_lock(&available_modifie);
-    work[i] = available[i];
-    pthread_mutex_unlock(&available_modifie);
+  pthread_mutex_lock(&available_modifie);
+  for (int i = 0; i < count_ct; ++i) {
+    for (int j = 0; j < nombre_ressources; ++j) {
+      work[i] = available[i];
+    }
     finish[i] = false;
   }
+  pthread_mutex_unlock(&available_modifie);
 
-  int count = 0;
-  while (count < count_ct) {
-
-    bool found = false;
+  /*while (true) {
     for (int i = 0; i < count_ct; ++i) {
+      if (finish[i] == false) {
+        for (int j = 0; j < nombre_ressources; ++j) {
+          if (need[i][j] <= work[i]) {
 
-      if ( finish[i] == 0 ) {
-
-        int j;
-
-        for (j = 0; j < nombre_ressources; ++j) {
-          if (need[i][j] > work[j]) {
-            break;
           }
-        }
-
-        if (j == nombre_ressources) {
-
-          for (int k = 0; k < nombre_ressources; ++k) {
-            work[k] += allocation[i][k];
-          }
-
-          safeSeq[count++] = i;
-          finish[i] = 1;
-          found = true;
         }
       }
     }
-    if (!found) {
-      return false;
-    }
+  }*/
 
-    /*int i;
-    bool success = false;
+  printf("Le systeme est dans un etat sur");
 
-    for (i = 0; i < count_ct; ++i) {
-      if (!finish[i]) {
-        bool sub_success = true;
-        for (int j = 0; j < nb_ressources; ++j) {
-          if (need[i][j] > work[j]) {
-            sub_success = false;
-            break;
-          }
-        }
-        if (sub_success) {
-          success = true;
-          break;
-        }
-      }
-    }
-    if (!success) {
-      success = true;
-      for (int i = 0; i < count_ct; ++i) {
-        if (!finish[i]) {
-          success = false;
-          break;
-        }
-      }
-      if (success) {
-        return true;
-      } else return false;
-    } else {
-      for (int j = 0; j < nb_ressources; ++j) {
-        work[i] += allocation[i][j];
-      }
-      finish[i] = true;
-    }*/
-  }
   return true;
 }
 
-void demande_ressources (int ct_id) {
-
-}
-
-void bankers_algorithm (int nb_ressources) {
-
-}
 
 void gerer_ini(int socket_fd,int cmd,int nb_args){
 
@@ -321,7 +265,7 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
         pthread_mutex_lock(&max_modifie);
         max[process_id][i] = ressource;
         allocation[process_id][i] = 0;
-        need[process_id][i] = max[process_id][i] - allocation[process_id][i];
+        need[process_id][i] = max[process_id][i];
         pthread_mutex_unlock(&max_modifie);
 
         pthread_mutex_lock(&count_modifie);
@@ -345,9 +289,16 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
 
-        // Banker's Algorithm
+        /*bool test = false;
+        pthread_mutex_lock(&need_modifie);
+        if (!test) {
 
+          //calculer_need();
+          test = true;
 
+        }
+        pthread_mutex_unlock(&need_modifie);*/
+        //safe_state();
           //safety_algo(process_id, nb_args+1);
 
           // Ressource request algorithm
