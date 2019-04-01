@@ -136,9 +136,9 @@ void envoie_config(int nb_cl){
   int socket_fd=connect_ct();
   envoyer_begin(socket_fd,nb_cl);
 
-  socket_fd=connect_ct();
+  int socket_fd2 = connect_ct();
 
-  envoyer_ressource(socket_fd);
+  envoyer_ressource(socket_fd2);
 
 }
 
@@ -180,7 +180,7 @@ void envoyer_INI(int socket,int id, int cmd){
 
   if(len>0) {
     if (header.cmd == ACK) {
-      printf("ACK \n");
+      //printf("ACK \n");
     }
   } else{
     printf("Pas de reponse!\n");

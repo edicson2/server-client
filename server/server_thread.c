@@ -52,7 +52,7 @@ unsigned int clients_ended = 0;
 
 // TODO: Ajouter vos structures de données partagées, ici.
 int nombre_ressources;
-
+int nombre_clients;
 
 /*
  * n  = number of threads
@@ -62,16 +62,17 @@ int nombre_ressources;
  *                of ressource m
  * allocation = [n][m] = process n has k instaces of
  *                the ressouce m
- * nees = [n][m] = process n may need k instances of
+ * need = [n][m] = process n may need k instances of
  *                the ressource m. We need to calculate it
  *                need[i][j] = max[i][j] - allocation[i][j]
  *  (available + allocation = new_available)
  *
  * */
 int *available;
-int *allocation;
-int *max;
-int *need;
+int **allocation;
+int **max;
+int **need;
+
 int *ressource;
 
 
@@ -82,9 +83,40 @@ pthread_mutex_t erreur_apres_requete;
 pthread_mutex_t client_finis_correctement;
 pthread_mutex_t requetes_proceses;
 
+pthread_mutex_t max_modifie;
 
 
 /********************************************************************************************************************/
+
+void initialiser_tableaux (int nb_clients, int nb_ressources) {
+
+  available = malloc(nb_ressources * sizeof(int));
+
+  allocation = malloc(sizeof(int*) * nb_clients);
+  max = malloc(sizeof(int*) * nb_clients);
+  need = malloc(sizeof(int*) * nb_clients);
+
+  for (int i = 0; i < nb_ressources; ++i) {
+    allocation[i] = malloc(sizeof(int) * nb_ressources);
+    max[i] = malloc(sizeof(int) * nb_ressources);
+    need[i] = malloc(sizeof(int) * nb_ressources);
+  }
+
+}
+
+void liberer_tableaux (int nb_ressources) {
+
+  for (int i = 0; i < nb_ressources; ++i) {
+    free(allocation[i]);
+    free(max[i]);
+    free(need[i]);
+  }
+
+  free(available);
+  free(allocation);
+  free(max);
+  free(need);
+}
 
 int recevoir_ressource(int socket_fd){
 
@@ -95,15 +127,16 @@ int recevoir_ressource(int socket_fd){
   int len = read_socket(socket_fd, &header, sizeof(header),max_wait_time * 1000);
   if (len > 0) {
 
-    // TODO Liberer max avant de la fin de l'algorithme
-    available = malloc(header.nb_args * sizeof(int));
-
     if(header.cmd==1){
 
       request_processed++;
       printf("**************************Ressources*************************\n");
-      //printf("CONF %d",header.nb_args);
-      for(int i=0; i<header.nb_args; i++){
+
+      nombre_ressources = header.nb_args;
+      nombre_clients = 5; // TODO Trouver le nombre de clients
+      initialiser_tableaux(nombre_clients, nombre_ressources);
+
+      for(int i=0; i<nombre_ressources; i++){
         read_socket(socket_fd,&available[i],sizeof(available[i]),max_wait_time*1000);
         //printf(" %d - ",available[i]);
       }
@@ -120,12 +153,16 @@ int recevoir_ressource(int socket_fd){
     printf("Echec dans la configuration...\n");
     stat = -1;
   }
+
+
+
   close(socket_fd);
   return stat;
 }
 
-void recevoir_beg(int socket_fd){
+int recevoir_beg(int socket_fd){
   int rng=0;
+  int stat = 0;
   printf("************************Initialisation du serveur********************\n\n");
 
   struct cmd_header_t header = { .nb_args = 0 };
@@ -145,11 +182,14 @@ void recevoir_beg(int socket_fd){
       send(socket_fd ,ack, sizeof(ack) ,0);
     } else {
       printf("ERR\n");
+      stat = -1;
     }
   }else{
     printf("Echec dans le debut...\n");
+    stat = -1;
   }
   close(socket_fd);
+  return stat;
 
 }
 
@@ -157,9 +197,14 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
 
   int x=-11;
 
-  if(cmd==INIT){
+  if(cmd==INIT && nb_args > 0){
     //printf("************************INI********************\n\n");
     //printf("INIT");
+    // on ajoute les ressouces maximales pour le thread
+    pthread_mutex_lock(&max_modifie);
+
+    pthread_mutex_unlock(&max_modifie);
+
     for(int i=0; i<nb_args+1; ++i){
       int len = read_socket(socket_fd,&x,sizeof(x),max_wait_time*1000);
 
@@ -191,7 +236,6 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
 
 }
 
-
 int accepte_ct(){
   struct sockaddr_in thread_addr;
   socklen_t socket_len = sizeof (thread_addr);
@@ -217,7 +261,9 @@ st_init ()
   // l'algorithme du banquier.
   int socket=accepte_ct();
 
-  recevoir_beg(socket);
+  if (recevoir_beg(socket) < 0) {
+    exit(1);
+  }
 
   socket=accepte_ct();
 
@@ -227,8 +273,6 @@ st_init ()
 
   // END TODO
 
-//close(thread_socket_fd);
-//close(socket);
 }
 
 void
@@ -253,7 +297,7 @@ st_process_requests (server_thread * st, int socket_fd)
       }
 
     } else {
-      // finir l'execution du serveur
+      // finir l'execution du thread serveur
     }
 
   } else {
@@ -270,7 +314,7 @@ st_signal ()
   // TODO: Remplacer le contenu de cette fonction
 
 
-  free(available);
+  liberer_tableaux(nombre_ressources);
 
 
   // TODO end
