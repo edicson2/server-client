@@ -68,13 +68,15 @@ int nombre_clients;
  *  (available + allocation = new_available)
  *
  * */
-int *total_ressources; // DONE!
-int *total_allocation;
 
-int **max;          // DONE!
-int **allocation;   //
-int **need;         //
-int *available;     // DONE!
+
+int **max;
+int **allocation;
+int **need;
+
+int *available;
+int *total_ressources;
+int *total_allocation;
 
 int count_ct = 0;
 
@@ -85,7 +87,7 @@ pthread_mutex_t erreur_apres_requete;
 pthread_mutex_t client_finis_correctement;
 pthread_mutex_t requetes_proceses;
 
-
+pthread_mutex_t total_allocation_modifie;
 pthread_mutex_t max_modifie;
 pthread_mutex_t allocation_modifie;
 pthread_mutex_t need_modifie;
@@ -105,6 +107,7 @@ void initialiser_tableaux (int nb_clients, int nb_ressources) {
   need = malloc(sizeof(int*) * nb_clients);
 
   available = malloc(nb_ressources * sizeof(int));
+
   // on doit inclure l'identificateur du thread
   for (int i = 0; i < nb_ressources; ++i) {
     max[i] = malloc(sizeof(int) * (nb_ressources + 1));
@@ -131,6 +134,11 @@ void liberer_tableaux (int nb_ressources) {
   free(need);
 }
 
+/*
+ * Fonction qui recoit la configuration initial du serveur
+ * et qui va ajouter le maximum des ressources disponibles
+ * */
+
 int recevoir_ressource(int socket_fd){
 
   int ress[1]={ACK};
@@ -141,7 +149,6 @@ int recevoir_ressource(int socket_fd){
   if (len > 0) {
 
     if(header.cmd==1){
-
       request_processed++;
       printf("**************************Ressources*************************\n");
 
@@ -149,8 +156,20 @@ int recevoir_ressource(int socket_fd){
       nombre_clients = 5; // TODO Trouver le nombre de clients
       initialiser_tableaux(nombre_clients, nombre_ressources);
 
+      // Ajouter le maximum des ressources
       for(int i=0; i<nombre_ressources; i++){
-        read_socket(socket_fd,&total_ressources[i],sizeof(total_ressources[i]),max_wait_time*1000);
+        int l = read_socket(socket_fd,&total_ressources[i],sizeof(total_ressources[i]),max_wait_time*1000);
+        if (l < 0) {
+          printf("Erreur dans la lecture de ressources\n");
+          int err[3] = {ERR, 1, -1};
+          send(socket_fd, err, sizeof(err), 0);
+          exit(1);
+        }
+      }
+
+      for (int j = 0; j < nombre_ressources; ++j) {
+        total_allocation[j] = 0;
+        available[j] = total_ressources[j];
       }
 
       count_accepted++;
@@ -164,13 +183,14 @@ int recevoir_ressource(int socket_fd){
     printf("Echec dans la configuration...\n");
     stat = -1;
   }
-
-
-
   close(socket_fd);
   return stat;
 }
 
+
+/*
+ * Fonction qui recoit la premier commande pour le debut du serveur
+ * */
 int recevoir_beg(int socket_fd){
   int rng=0;
   int stat = 0;
@@ -185,12 +205,16 @@ int recevoir_beg(int socket_fd){
     if(header.cmd==BEGIN){
       request_processed++;
       int len2 = read_socket(socket_fd, &rng, sizeof(rng), max_wait_time * 1000);
-      printf("BEGIN nb.args=%d  rng=%d\n",header.nb_args, rng);
-
-      count_accepted++;
-
-      int ack[3]={ACK,1, rng};
-      send(socket_fd ,ack, sizeof(ack) ,0);
+      if (len2 > 0) {
+        printf("BEGIN nb.args=%d  rng=%d\n",header.nb_args, rng);
+        count_accepted++;
+        int ack[3]={ACK,1, rng};
+        send(socket_fd ,ack, sizeof(ack) ,0);
+      } else {
+        printf("Erreur dans RNG");
+        int err[3] = {ERR, 1, -1};
+        send(socket_fd, err, sizeof(err), 0);
+      }
     } else {
       printf("ERR\n");
       stat = -1;
@@ -204,95 +228,74 @@ int recevoir_beg(int socket_fd){
 
 }
 
+void calculer_need () {
 
-
-void calculer_need (int process_id) {
-  for (int j = 0; j < nombre_ressources; ++j) {
-    need[process_id][j] = max[process_id][j] - allocation[process_id][j];
+  pthread_mutex_lock(&need_modifie);
+  for (int i = 0; i < count_ct; ++i) {
+    for (int j = 0; j < nombre_ressources; ++j) {
+      need[i][j] = max[i][j] - allocation[i][j];
+    }
   }
+  pthread_mutex_unlock(&need_modifie);
 }
 
-bool safe_state (int ct_id) {
+void calculer_available () {
 
-  int work[nombre_ressources];
+  pthread_mutex_lock(&available_modifie);
+  for (int i = 0; i < nombre_ressources; ++i) {
+    available[i] = total_ressources[i] - total_allocation[i];
+  }
+  pthread_mutex_unlock(&available_modifie);
+
+}
+
+void calculer_total_allocation () {
+  int add = 0;
+  pthread_mutex_lock(&total_allocation_modifie);
+  for (int i = 0; i < nombre_ressources; ++i) {
+    add = 0;
+    for (int j = 0; j < count_ct; ++j) {
+      add += allocation[j][i];
+    }
+    total_allocation[i] = add;
+  }
+  pthread_mutex_unlock(&total_allocation_modifie);
+
+}
+
+bool safe_state (int p_id) {
+
+  //int work[nombre_ressources];
+  int *work;
+  work = malloc(nombre_ressources * sizeof(int));
   bool finish[count_ct];
 
-  int safeSeq[count_ct];
+  //calculer_need();
 
+  pthread_mutex_lock(&available_modifie);
   for (int i = 0; i < nombre_ressources; ++i) {
-    pthread_mutex_lock(&available_modifie);
     work[i] = available[i];
-    pthread_mutex_unlock(&available_modifie);
-    finish[i] = false;
+  }
+  pthread_mutex_unlock(&available_modifie);
+
+  for (int j = 0; j < count_ct; ++j) {
+    finish[j] = false;
   }
 
-  int count = 0;
-  while (count < count_ct) {
-
-    bool found = false;
-    for (int i = 0; i < count_ct; ++i) {
-
-      if ( finish[i] == 0 ) {
-
-        int j;
-
-        for (j = 0; j < nombre_ressources; ++j) {
-          if (need[i][j] > work[j]) {
-            break;
-          }
+  for (int k = 0; k < count_ct; ++k) {
+    if (finish[k] == false) {
+      for (int j = 0; j < nombre_ressources; ++j) {
+        if (need[k][j] > work[j]) {
+          printf("UNSAFE\n");
         }
+      }
 
-        if (j == nombre_ressources) {
-
-          for (int k = 0; k < nombre_ressources; ++k) {
-            work[k] += allocation[i][k];
-          }
-
-          safeSeq[count++] = i;
-          finish[i] = 1;
-          found = true;
-        }
+      for (int i = 0; i < nombre_ressources ; ++i) {
+        work[i] += allocation[k][i];
       }
     }
-    if (!found) {
-      return false;
-    }
-
-    /*int i;
-    bool success = false;
-    for (i = 0; i < count_ct; ++i) {
-      if (!finish[i]) {
-        bool sub_success = true;
-        for (int j = 0; j < nb_ressources; ++j) {
-          if (need[i][j] > work[j]) {
-            sub_success = false;
-            break;
-          }
-        }
-        if (sub_success) {
-          success = true;
-          break;
-        }
-      }
-    }
-    if (!success) {
-      success = true;
-      for (int i = 0; i < count_ct; ++i) {
-        if (!finish[i]) {
-          success = false;
-          break;
-        }
-      }
-      if (success) {
-        return true;
-      } else return false;
-    } else {
-      for (int j = 0; j < nb_ressources; ++j) {
-        work[i] += allocation[i][j];
-      }
-      finish[i] = true;
-    }*/
   }
+  printf("SAFE!\n");
   return true;
 }
 
@@ -326,7 +329,7 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
 
         // Remplir les tableaux avec les donnees initiales
         pthread_mutex_lock(&max_modifie);
-        max[process_id][j] = ressource;
+        max[process_id][j] = ressource;   // maximum de ressources par client
         pthread_mutex_unlock(&max_modifie);
 
         pthread_mutex_lock(&allocation_modifie);
@@ -357,6 +360,8 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
     for(int i=0; i<nb_args; ++i){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
+
+        //safe_state(process_id);
 
         // Banker's Algorithm
 

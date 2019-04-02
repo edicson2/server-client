@@ -169,7 +169,7 @@ void envoyer_INI(int socket,int id, int cmd){
     else if(i==1)
       ini_res[i]=num_resources;
     else if(i==2)
-      ini_res[i]=id;//330+id;
+      ini_res[i]=id;  //330+id;
     else
       ini_res[i]=max[i-3];
   }
