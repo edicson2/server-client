@@ -362,42 +362,27 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
 
   } else if(cmd==REQ){
 
-    int *res;
-    res = malloc(nb_args * sizeof(int));
+    int *ressources_demandes;
+    int *safe_sequence;
+    ressources_demandes = malloc(nombre_ressources * sizeof(int));
+    safe_sequence = malloc(count_ct * sizeof(int));
+
     for(int i=0; i<nb_args; ++i){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
-        res[i] = ressource;
+
+        // Array qui contient les ressources a allouer
+        ressources_demandes[i] = ressource;
 
         // La ressource demande est plus grande que le max autorise
         // ou plus petit que (-)max autorise
-        if ( res[i] > max[process_id][i] || res[i] < (max[process_id][i] * (-1)) ) {
+        if ( ressources_demandes[i] > max[process_id][i] || ressources_demandes[i] < (max[process_id][i] * (-1)) ) {
           int err[3] = {ERR, 1, -1};
           send(socket_fd, err, sizeof(err), 0);
-          free(res);
+          free(ressources_demandes);
           break;
         }
-        int *safe_sequence;
-        safe_sequence = malloc(count_ct * sizeof(int));
 
-        pthread_mutex_lock(&need_modifie);
-
-        // verifier s'il est possible trouver une facon de faire
-        if (safe_state(safe_sequence)) {
-          // Ressource request algorithm
-
-
-        } else {
-          // repondre wait pour essayer plus tard
-          //printf("TOO BAD!\n");
-        }
-        pthread_mutex_unlock(&need_modifie);
-
-
-
-
-
-        free(safe_sequence);
 
       } else {
         printf("Erreur de lecture...\n");
@@ -405,6 +390,31 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
         break;
       }
     }
+    // TODO verifier calculer_available()
+    //pthread_mutex_lock(&available_modifie);
+    //calculer_available();
+    //pthread_mutex_unlock(&available_modifie);
+
+
+    // verifier s'il est possible trouver une facon de faire l'allocation
+    if (safe_state(safe_sequence)) {
+      // Ressource request algorithm
+      for (int i = 0; i < nombre_ressources ; ++i) {
+        if (ressources_demandes[i] <= need[process_id][i]) {
+          if (ressources_demandes[i] <= available[i]) {
+            // available = available - request;
+            // allocation = allocation + request;
+            // need = need - request;
+          }
+        }
+      }
+    } else {
+      // repondre wait pour essayer plus tard
+      //printf("TOO BAD!\n");
+    }
+
+    free(safe_sequence);
+    free(ressources_demandes);
     if (lecture) {
       int ack[2] = {4, 1};
       send(socket_fd ,ack, sizeof(ack) ,0);
