@@ -203,8 +203,8 @@ send_request (int client_id, int request_id, int socket_fd) {
 
   // TP2 TODO
 
-  fprintf (stdout, "Client %d is sending its %d request\n", client_id,
-   request_id);
+  //fprintf (stdout, "Client %d is sending its %d request\n", client_id,
+  // request_id);
   envoyer_INI(socket_fd, client_id, REQ);
 
   // TP2 TODO:END
@@ -216,18 +216,20 @@ ct_code (void *param)
 {
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
-
-  socket_fd=connect_ct();
-  if(etat==0){
-    exit(0);}
-  client_peut_connecter(socket_fd,ct->id);
-
+  bool connection_fait = false;
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
   // TP2 TODO:END
   // printf("***********************Usage maximum**********************\n");
+
+  // 1 seul thread envoi la requete de configuration
   pthread_mutex_lock(&envoyer_init);
   if (!init_envoye) {
+    socket_fd=connect_ct();
+    if(etat==0){
+      exit(0);}
+    client_peut_connecter(socket_fd,ct->id);
+    connection_fait = true;
     envoyer_INI(socket_fd,ct->id, INIT);
     init_envoye = true;
   }
@@ -237,7 +239,12 @@ ct_code (void *param)
 
   for (unsigned int request_id = 0; request_id < num_request_per_client;
        request_id++) {
+
     socket_fd=connect_ct();
+    if (!connection_fait) {
+      client_peut_connecter(socket_fd,ct->id);
+      connection_fait = true;
+    }
     // TP2 TODO
     // Vous devez ici coder, conjointement avec le corps de send request,
     // le protocole d'envoi de requête.

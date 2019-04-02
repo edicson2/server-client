@@ -272,11 +272,11 @@ bool safe_state () {
 
   calculer_need();
 
-  pthread_mutex_lock(&available_modifie);
+  //pthread_mutex_lock(&available_modifie);
   for (int i = 0; i < nombre_ressources; ++i) {
     work[i] = available[i];
   }
-  pthread_mutex_unlock(&available_modifie);
+  //pthread_mutex_unlock(&available_modifie);
 
   for (int j = 0; j < count_ct; ++j) {
     finish[j] = false;
@@ -302,7 +302,7 @@ bool safe_state () {
 
 
 // TODO traiter les REQ
-void gerer_ini(int socket_fd,int cmd,int nb_args, int process_id){
+void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
 
   int ressource=0;
   bool lecture = true;
@@ -361,9 +361,6 @@ void gerer_ini(int socket_fd,int cmd,int nb_args, int process_id){
           //printf("TOO BAD!\n");
         }
         pthread_mutex_unlock(&total_allocation_modifie);
-
-
-
 
 
       } else {
@@ -444,8 +441,12 @@ st_process_requests (server_thread * st, int socket_fd)
         if (header.nb_args > 0) {
           int process_id;
           len = read_socket(socket_fd, &process_id, sizeof(process_id), max_wait_time*1000);
+          if (len > 0) {
+            gerer_requete(socket_fd,header.cmd,header.nb_args, process_id);
+          } else {
+            printf("Erreur de lecture... \n");
+          }
 
-          gerer_ini(socket_fd,header.cmd,header.nb_args, process_id);
 
         }
 
