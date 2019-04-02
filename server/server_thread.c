@@ -80,6 +80,7 @@ int *total_allocation;
 
 int count_ct = 0;
 
+
 // Mutex
 pthread_mutex_t accepte_sans_delai;
 pthread_mutex_t accepte_avec_delai;
@@ -110,9 +111,9 @@ void initialiser_tableaux (int nb_clients, int nb_ressources) {
 
   // on doit inclure l'identificateur du thread
   for (int i = 0; i < nb_ressources; ++i) {
-    max[i] = malloc(sizeof(int) * (nb_ressources + 1));
-    allocation[i] = malloc(sizeof(int) * (nb_ressources + 1));
-    need[i] = malloc(sizeof(int) * (nb_ressources + 1));
+    max[i] = malloc(sizeof(int) * nb_ressources);
+    allocation[i] = malloc(sizeof(int) * nb_ressources);
+    need[i] = malloc(sizeof(int) * nb_ressources);
   }
 
 }
@@ -230,13 +231,13 @@ int recevoir_beg(int socket_fd){
 
 void calculer_need () {
 
-  pthread_mutex_lock(&need_modifie);
+  //pthread_mutex_lock(&need_modifie);
   for (int i = 0; i < count_ct; ++i) {
     for (int j = 0; j < nombre_ressources; ++j) {
       need[i][j] = max[i][j] - allocation[i][j];
     }
   }
-  pthread_mutex_unlock(&need_modifie);
+  //pthread_mutex_unlock(&need_modifie);
 }
 
 void calculer_available () {
@@ -263,14 +264,13 @@ void calculer_total_allocation () {
 
 }
 
-bool safe_state (int p_id) {
+bool safe_state () {
 
-  //int work[nombre_ressources];
   int *work;
   work = malloc(nombre_ressources * sizeof(int));
   bool finish[count_ct];
 
-  //calculer_need();
+  calculer_need();
 
   pthread_mutex_lock(&available_modifie);
   for (int i = 0; i < nombre_ressources; ++i) {
@@ -296,34 +296,20 @@ bool safe_state (int p_id) {
     }
   }
   printf("SAFE!\n");
+  free(work);
   return true;
 }
 
-void demande_ressources (int ct_id) {
 
-}
-
-void bankers_algorithm (int nb_ressources) {
-
-}
-
-
-
-void gerer_ini(int socket_fd,int cmd,int nb_args){
+// TODO traiter les REQ
+void gerer_ini(int socket_fd,int cmd,int nb_args, int process_id){
 
   int ressource=0;
   bool lecture = true;
-  int process_id = -1;
-  int length = 0;
 
-  if (nb_args > 0) {
-    // obtenir l'id du thread
-    length = read_socket(socket_fd,&process_id,sizeof(process_id),max_wait_time*1000);
-  }
+  if(cmd==INIT){
 
-  if(cmd==INIT && length >0){
-
-    for(int j=1; j<nb_args; ++j){
+    for(int j=0; j<nb_args; ++j){
       int len = read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
 
@@ -350,25 +336,34 @@ void gerer_ini(int socket_fd,int cmd,int nb_args){
         break;
       }
     }
+
+    for (int i = 0; i < count_ct ; ++i) {
+      for (int j = 0; j < nombre_ressources; ++j) {
+      }
+    }
     if (lecture) {
       int ack[2] = {4, 0};
       send(socket_fd ,ack, sizeof(ack) ,0);
     }
 
-  } else if(cmd==REQ && length >0){
+  } else if(cmd==REQ){
 
     for(int i=0; i<nb_args; ++i){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
 
-        //safe_state(process_id);
+        pthread_mutex_lock(&total_allocation_modifie);
+        if (safe_state()) {
+          // Ressource request algorithm
+          //printf("FYNALLY!\n");
+        } else {
+          // repondre wait pour essayer plus tard
+          //printf("TOO BAD!\n");
+        }
+        pthread_mutex_unlock(&total_allocation_modifie);
 
-        // Banker's Algorithm
 
 
-        //safety_algo(process_id, nb_args+1);
-
-        // Ressource request algorithm
 
 
       } else {
@@ -447,7 +442,11 @@ st_process_requests (server_thread * st, int socket_fd)
       if (header.cmd != END) {
 
         if (header.nb_args > 0) {
-          gerer_ini(socket_fd,header.cmd,header.nb_args);
+          int process_id;
+          len = read_socket(socket_fd, &process_id, sizeof(process_id), max_wait_time*1000);
+
+          gerer_ini(socket_fd,header.cmd,header.nb_args, process_id);
+
         }
 
       } else {

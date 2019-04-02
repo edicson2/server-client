@@ -35,6 +35,9 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 int etat=0;
 
+pthread_mutex_t envoyer_init;
+bool init_envoye = false;
+
 /*********************************************************************************************************/
 int connect_ct()
 {
@@ -175,7 +178,6 @@ void envoyer_INI(int socket,int id, int cmd){
   }
   send(socket,ini_res,sizeof(ini_res),0);
   struct cmd_header_t header = { .nb_args = 0};
-
   int len=read_socket(socket, &header, sizeof(header),8);
 
   if(len>0) {
@@ -201,9 +203,8 @@ send_request (int client_id, int request_id, int socket_fd) {
 
   // TP2 TODO
 
-  //fprintf (stdout, "Client %d is sending its %d request\n", client_id,
-  // request_id);
-
+  fprintf (stdout, "Client %d is sending its %d request\n", client_id,
+   request_id);
   envoyer_INI(socket_fd, client_id, REQ);
 
   // TP2 TODO:END
@@ -225,7 +226,12 @@ ct_code (void *param)
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
   // TP2 TODO:END
   // printf("***********************Usage maximum**********************\n");
-  envoyer_INI(socket_fd,ct->id, INIT);
+  pthread_mutex_lock(&envoyer_init);
+  if (!init_envoye) {
+    envoyer_INI(socket_fd,ct->id, INIT);
+    init_envoye = true;
+  }
+  pthread_mutex_unlock(&envoyer_init);
 
   //int tab[3] = {REQ, 1, rand()};
 
