@@ -362,55 +362,48 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
 
   } else if(cmd==REQ){
 
-    int *ressources_demandes;
-    ressources_demandes = malloc(nb_args * sizeof(int));
+    int *res;
+    res = malloc(nb_args * sizeof(int));
     for(int i=0; i<nb_args; ++i){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
-        ressources_demandes[i] = ressource;
+        res[i] = ressource;
+
         // La ressource demande est plus grande que le max autorise
         // ou plus petit que (-)max autorise
-        if ( ressources_demandes[i] > max[process_id][i] || ressources_demandes[i] < (max[process_id][i] * (-1)) ) {
+        if ( res[i] > max[process_id][i] || res[i] < (max[process_id][i] * (-1)) ) {
           int err[3] = {ERR, 1, -1};
           send(socket_fd, err, sizeof(err), 0);
-          free(ressources_demandes);
+          free(res);
           break;
         }
+        int *safe_sequence;
+        safe_sequence = malloc(count_ct * sizeof(int));
+
+        pthread_mutex_lock(&need_modifie);
+
+        // verifier s'il est possible trouver une facon de faire
+        if (safe_state(safe_sequence)) {
+          // Ressource request algorithm
+
+
+        } else {
+          // repondre wait pour essayer plus tard
+          //printf("TOO BAD!\n");
+        }
+        pthread_mutex_unlock(&need_modifie);
+
+
+
+
+
+        free(safe_sequence);
+
       } else {
         printf("Erreur de lecture...\n");
         lecture = false;
         break;
       }
-
-      int *safe_sequence;
-      bool flag = false;
-      safe_sequence = malloc(count_ct * sizeof(int));
-
-      pthread_mutex_lock(&need_modifie);
-      // verifier s'il est possible trouver une facon de faire l'allocation
-      if (safe_state(safe_sequence)) {
-
-        // allocation de ressources selon safe_sequence
-
-        pthread_mutex_lock(&need_modifie);
-        flag = true;
-
-      } else {
-        // repondre wait pour essayer plus tard
-        //printf("TOO BAD!\n");
-      }
-      if (!flag) {
-        pthread_mutex_unlock(&need_modifie);
-      }
-
-
-
-
-
-
-      free(safe_sequence);
-      free(ressources_demandes);
-
     }
     if (lecture) {
       int ack[2] = {4, 1};
