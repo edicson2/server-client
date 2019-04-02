@@ -264,12 +264,11 @@ void calculer_total_allocation () {
 
 }
 
-bool safe_state () {
+bool safe_state (int *safe_sequence) {
 
   int *work;
   work = malloc(nombre_ressources * sizeof(int));
   bool finish[count_ct];
-
   calculer_need();
 
   //pthread_mutex_lock(&available_modifie);
@@ -282,24 +281,53 @@ bool safe_state () {
     finish[j] = false;
   }
 
-  for (int k = 0; k < count_ct; ++k) {
-    if (finish[k] == false) {
-      for (int j = 0; j < nombre_ressources; ++j) {
-        if (need[k][j] > work[j]) {
-          printf("UNSAFE\n");
+  int counter = 0;
+  while (counter < count_ct) {
+    bool found = false;
+    for (int i = 0; i < count_ct ; ++i) {
+      if (finish[i] == false) {
+        int j;
+        for (j = 0; j < nombre_ressources; ++j) {
+          if (need[i][j] > work[j]) {
+            break;
+          }
+        }
+        if (j == nombre_ressources) {
+          for (int k = 0; k < nombre_ressources; ++k) {
+            work[k] += allocation[i][k];
+          }
+          safe_sequence[counter++] = i;
+          finish[i] = true;
+          found = true;
         }
       }
-
-      for (int i = 0; i < nombre_ressources ; ++i) {
-        work[i] += allocation[k][i];
-      }
+    }
+    if (!found) {
+      printf("UNSAFE!\n");
+      return false;
     }
   }
-  printf("SAFE!\n");
-  free(work);
+  printf("Safe.\n");
   return true;
 }
 
+void remplir_donnees_initiales (int process_id, int ressource, int j) {
+  pthread_mutex_lock(&max_modifie);
+  max[process_id][j] = ressource;   // maximum de ressources par client
+  pthread_mutex_unlock(&max_modifie);
+
+  pthread_mutex_lock(&allocation_modifie);
+  allocation[process_id][j] = 0;    // Rien encore alloue
+  pthread_mutex_unlock(&allocation_modifie);
+
+  pthread_mutex_lock(&need_modifie);
+  need[process_id][j] = max[process_id][j]; // Au debut need == max
+  pthread_mutex_unlock(&need_modifie);
+
+  pthread_mutex_lock(&count_modifie);
+  count_ct++;
+  pthread_mutex_unlock(&count_modifie);
+}
 
 // TODO traiter les REQ
 void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
@@ -314,21 +342,7 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       if (len > 0) {
 
         // Remplir les tableaux avec les donnees initiales
-        pthread_mutex_lock(&max_modifie);
-        max[process_id][j] = ressource;   // maximum de ressources par client
-        pthread_mutex_unlock(&max_modifie);
-
-        pthread_mutex_lock(&allocation_modifie);
-        allocation[process_id][j] = 0;    // Rien encore alloue
-        pthread_mutex_unlock(&allocation_modifie);
-
-        pthread_mutex_lock(&need_modifie);
-        need[process_id][j] = max[process_id][j]; // Au debut need == max
-        pthread_mutex_unlock(&need_modifie);
-
-        pthread_mutex_lock(&count_modifie);
-        count_ct++;
-        pthread_mutex_unlock(&count_modifie);
+        remplir_donnees_initiales(process_id, ressource, j);
 
       } else {
         printf("Erreur de lecture...\n");
@@ -348,20 +362,42 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
 
   } else if(cmd==REQ){
 
+    int *res;
+    res = malloc(nb_args * sizeof(int));
     for(int i=0; i<nb_args; ++i){
       int len=read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
       if (len > 0) {
+        res[i] = ressource;
 
-        pthread_mutex_lock(&total_allocation_modifie);
-        if (safe_state()) {
+        // La ressource demande est plus grande que le max autorise
+        // ou plus petit que (-)max autorise
+        if ( res[i] > max[process_id][i] || res[i] < (max[process_id][i] * (-1)) ) {
+          int err[3] = {ERR, 1, -1};
+          send(socket_fd, err, sizeof(err), 0);
+          free(res);
+          break;
+        }
+        int *safe_sequence;
+        safe_sequence = malloc(count_ct * sizeof(int));
+
+        pthread_mutex_lock(&need_modifie);
+
+        // verifier s'il est possible trouver une facon de faire
+        if (safe_state(safe_sequence)) {
           // Ressource request algorithm
-          //printf("FYNALLY!\n");
+
+
         } else {
           // repondre wait pour essayer plus tard
           //printf("TOO BAD!\n");
         }
-        pthread_mutex_unlock(&total_allocation_modifie);
+        pthread_mutex_unlock(&need_modifie);
 
+
+
+
+
+        free(safe_sequence);
 
       } else {
         printf("Erreur de lecture...\n");
