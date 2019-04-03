@@ -36,7 +36,7 @@ unsigned int request_sent = 0;
 int etat=0;
 
 pthread_mutex_t envoyer_init;
-bool init_envoye = false;
+int init_envoye = 0;
 
 /*********************************************************************************************************/
 int connect_ct()
@@ -216,35 +216,30 @@ ct_code (void *param)
 {
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
-  bool connection_fait = false;
+
+  pthread_mutex_lock(&envoyer_init);
+  if (init_envoye < 5) {
+    printf("init_envoye %d\n", init_envoye);
+    socket_fd=connect_ct();
+    if(etat==0){
+      exit(0);}
+    client_peut_connecter(socket_fd,ct->id);
+    envoyer_INI(socket_fd,ct->id, INIT);
+    init_envoye++;
+  }
+  pthread_mutex_unlock(&envoyer_init);
+
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
   // TP2 TODO:END
   // printf("***********************Usage maximum**********************\n");
 
-  // 1 seul thread envoi la requete de configuration
-  pthread_mutex_lock(&envoyer_init);
-  if (!init_envoye) {
-    socket_fd=connect_ct();
-    if(etat==0){
-      exit(0);}
-    client_peut_connecter(socket_fd,ct->id);
-    connection_fait = true;
-    envoyer_INI(socket_fd,ct->id, INIT);
-    init_envoye = true;
-  }
-  pthread_mutex_unlock(&envoyer_init);
 
   //int tab[3] = {REQ, 1, rand()};
 
   for (unsigned int request_id = 0; request_id < num_request_per_client;
        request_id++) {
-
     socket_fd=connect_ct();
-    if (!connection_fait) {
-      client_peut_connecter(socket_fd,ct->id);
-      connection_fait = true;
-    }
     // TP2 TODO
     // Vous devez ici coder, conjointement avec le corps de send request,
     // le protocole d'envoi de requête.
@@ -255,8 +250,9 @@ ct_code (void *param)
     //envoyer_INI(socket_fd,ct->id,  REQ);
     send_request (ct->id, request_id, socket_fd);
 
+    // TODO Recevoir et gerer reponses (Wait, Close, etc...)
 
-    // TP2 TODO:END
+// TP2 TODO:END
 
     /* Attendre un petit peu (0s-0.1s) pour simuler le calcul.  */
     usleep (random () % (100 * 1000));
