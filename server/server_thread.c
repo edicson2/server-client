@@ -287,51 +287,39 @@ void calculer_total_allocation () {
 
 }
 
-bool safe_state (int *safe_sequence, int *nouvelle_available, int *nouvelle_need ) {
+bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
+        int **nouvelle_need, int **nouvelle_allocation) {
 
-  int *work = malloc(nombre_ressources * sizeof(int));
-  bool finish[nombre_clients];
+  bool finish[nb_clients];
+  int *work = malloc(nb_ressources * sizeof(int));
 
-  //pthread_mutex_lock(&available_modifie);
-  for (int i = 0; i < nombre_ressources; ++i) {
-    work[i] = nouvelle_available[i];
+  for (int k = 0; k < nb_ressources; ++k) {
+    work[k] = nouvelle_available[k];
   }
-  //pthread_mutex_unlock(&available_modifie);
-
   for (int j = 0; j < nombre_clients; ++j) {
     finish[j] = false;
   }
 
-  int counter = 0;
-  while (counter < nombre_clients) {
-    bool found = false;
-    for (int i = 0; i < nombre_clients ; ++i) {
-      if (finish[i] == false) {
-        int j;
-        for (j = 0; j < nombre_ressources; ++j) {
-          if (need[i][j] > work[j]) {
-            break;
-          }
-        }
-        if (j == nombre_ressources) {
-          for (int k = 0; k < nombre_ressources; ++k) {
-            work[k] += allocation[i][k];
-          }
-          safe_sequence[counter++] = i;
+  for (int i = 0; i < nombre_clients; ++i) {
+    if (finish[i] == false) {
+      for (int j = 0; j < nombre_ressources ; ++j) {
+        if (nouvelle_need[i][j] <= work[j]) {
+          work[j] = work[j] + nouvelle_allocation[i][j];
           finish[i] = true;
-          found = true;
+          break;
         }
       }
     }
-    if (!found) {
+  }
+  free(work);
+  for (int l = 0; l < nb_clients; ++l) {
+    if (finish[l] == false) {
       printf("UNSAFE!\n");
-      free(work);
       return false;
     }
   }
-  printf("Safe.\n");
-  free(work);
   return true;
+
 }
 
 
@@ -476,7 +464,8 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       pthread_mutex_unlock(&need_modifie);
 
 
-
+      safe_state (nombre_clients, nombre_ressources, nouvelle_available,
+              nouvelle_need, nouvelle_allocation);
 
 
 
