@@ -73,7 +73,6 @@ void envoyer_ressource(int socket){
   //int buffe[5]={11,3,33,45,55};
   int provision_res[num_resources+2];
 
-//printf("ca marche\n");
   for(int i=0; i<num_resources+2; i++){
     if(i==0)
       provision_res[i]=CONF;
@@ -82,24 +81,24 @@ void envoyer_ressource(int socket){
     else
       provision_res[i]=provisioned_resources[i-2];
   }
-
   send(socket, provision_res, sizeof(provision_res) ,0);
 
 
   struct cmd_header_t header = { .nb_args = 0};
 
   int len=read_socket(socket, &header, sizeof(header),8);
-
+  printf("len %d\n", len);
   if(len>0){
     if(header.cmd==ACK){
       printf("configuration du serveur reussie\n\n");
-
-
+    } else{
+      printf("La réponse du serveur est différente a l'ésperé\n\n");
+      //exit(1);
     }
-    else{}
-
+  } else{
+    printf("Échec dans la configuration du serveur... \n\n");
+    //exit(1);
   }
-  else{}
 
   close(socket);
 

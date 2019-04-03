@@ -54,21 +54,6 @@ unsigned int clients_ended = 0;
 int nombre_ressources = 0;
 int nombre_clients = 0;
 
-/*
- * n  = number of threads
- * m = number of ressources
- * available = vector of length m
- * max = [n][m] = process n can request at most k instances
- *                of ressource m
- * allocation = [n][m] = process n has k instaces of
- *                the ressouce m
- * need = [n][m] = process n may need k instances of
- *                the ressource m. We need to calculate it
- *                need[i][j] = max[i][j] - allocation[i][j]
- *  (available + allocation = new_available)
- *
- * */
-
 int *total_ressources;
 int **max;
 
@@ -77,8 +62,6 @@ int **need;
 
 int *available;
 int *total_allocation;
-
-//int count_ct = 0;
 
 
 // Mutex
@@ -102,9 +85,25 @@ pthread_mutex_t available_modifie;
 void tab_print (int **tab, char *tab_name, int lignes, int colonnes) {
   for (int i = 0; i < lignes; ++i) {
     for (int j = 0; j < colonnes; ++j) {
-      printf("%s [%d][%d] = %d\n", tab_name, i, j, tab[i][j]);
+      printf("%s [%d][%d] = %d   -   ", tab_name, i, j, tab[i][j]);
     }
+    printf("\n");
   }
+  printf("\n\n");
+}
+
+int rand_lim(int limit) {
+/* return a random number between 0 and limit inclusive.
+ */
+
+  int divisor = RAND_MAX/(limit+1);
+  int retval;
+
+  do {
+    retval = rand() / divisor;
+  } while (retval > limit);
+
+  return retval;
 }
 
 void initialiser_tableaux (int nb_clients, int nb_ressources) {
@@ -144,6 +143,11 @@ void liberer_tableaux (int nb_ressources) {
 }
 
 void remplir_donnees_initiales (int process_id, int donne, int j) {
+
+  while (donne == 0 ) {
+    donne = rand_lim(10);
+  }
+
   pthread_mutex_lock(&max_modifie);
   max[process_id][j] = donne;   // maximum de ressources par client
   pthread_mutex_unlock(&max_modifie);
@@ -207,7 +211,7 @@ int recevoir_beg(int socket_fd){
 
 int recevoir_ressource(int socket_fd){
 
-  int ress[1]={ACK};
+
   int stat = 0;
   struct cmd_header_t header = { .nb_args=0 };
 
@@ -229,14 +233,14 @@ int recevoir_ressource(int socket_fd){
           send(socket_fd, err, sizeof(err), 0);
           exit(1);
         }
+        int reponse[1]={ACK};
+        send(socket_fd ,&reponse, sizeof(reponse) ,0);
       }
-
       for (int j = 0; j < nombre_ressources; ++j) {
         total_allocation[j] = 0;
         available[j] = total_ressources[j];
+        //printf("Total_res %d - ", total_ressources[j]);
       }
-
-      send(socket_fd ,&ress, sizeof(ress) ,0);
     } else {
       printf("ERR\n");
       stat = -1;
@@ -286,6 +290,11 @@ void calculer_total_allocation () {
 
 }
 
+/*
+ * Fonction qui va vérifier si dans l'etat actuelle il est possible
+ * de générer un deadlock si on fait les allocation necessaires pour
+ * les clients.
+ * */
 bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
         int **nouvelle_need, int **nouvelle_allocation) {
 
@@ -299,6 +308,7 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
     finish[j] = false;
   }
 
+
   for (int i = 0; i < nombre_clients; ++i) {
     if (finish[i] == false) {
       for (int j = 0; j < nombre_ressources ; ++j) {
@@ -311,13 +321,13 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
     }
   }
   free(work);
+
   for (int l = 0; l < nb_clients; ++l) {
     if (finish[l] == false) {
-      printf("UNSAFE!\n");
+      printf("UNSAFE\n");
       return false;
     }
   }
-  printf("SAFE.\n");
   return true;
 
 }
@@ -353,10 +363,8 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
   } else if(cmd==REQ) {
     bool valide = true;
     int wait_time = 2;
-    int *ressources_demandes;
-    int *safe_sequence;
-    ressources_demandes = malloc(nombre_ressources * sizeof(int));
-    safe_sequence = malloc(nombre_clients * sizeof(int));
+
+    int *ressources_demandes = malloc(nombre_ressources * sizeof(int));
 
     for (int i = 0; i < nb_args; ++i) {
       int len = read_socket(socket_fd, &ressource, sizeof(ressource), max_wait_time * 1000);
@@ -384,6 +392,7 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
         break;
       }
 
+      // Si on a obtenu les données correctement on doit envoyer la réponse au client
       int ack[2] = {ACK, 0};
       send(socket_fd, ack, sizeof(ack), 0);
     }
@@ -505,7 +514,6 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       free(nouvelle_need);
       free(nouvelle_allocation);
       free(nouvelle_available);
-      free(safe_sequence);
       free(ressources_demandes);
 
     }
