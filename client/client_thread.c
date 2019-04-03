@@ -28,7 +28,7 @@ unsigned int count_on_wait = 0;
 // Nombre de requête refusée (REFUSE reçus en réponse à REQ)
 unsigned int count_invalid = 0;
 
-// Nombre de client qui se sont terminés correctement (ACC reçu en réponse à END)
+// Nombre de client qui se sont terminés correctement (ACK reçu en réponse à END)
 unsigned int count_dispatched = 0;
 
 // Nombre total de requêtes envoyées.
@@ -67,10 +67,13 @@ int connect_ct()
 }
 
 
-
+/*
+ * Fonction qui va envoyer les ressources maximales au serveur
+ * ( 10 4 23 1 2 )
+ * */
 void envoyer_ressource(int socket){
-//on va construire un tableau pour envoyer.
-  //int buffe[5]={11,3,33,45,55};
+
+  //on va construire un tableau pour envoyer au serveur.
   int provision_res[num_resources+2];
 
   for(int i=0; i<num_resources+2; i++){
@@ -80,24 +83,23 @@ void envoyer_ressource(int socket){
       provision_res[i]=num_resources;
     else
       provision_res[i]=provisioned_resources[i-2];
+
   }
   send(socket, provision_res, sizeof(provision_res) ,0);
 
-
   struct cmd_header_t header = { .nb_args = 0};
-
   int len=read_socket(socket, &header, sizeof(header),8);
-  printf("len %d\n", len);
+
   if(len>0){
     if(header.cmd==ACK){
       printf("configuration du serveur reussie\n\n");
     } else{
       printf("La réponse du serveur est différente a l'ésperé\n\n");
-      //exit(1);
+      exit(1);
     }
   } else{
     printf("Échec dans la configuration du serveur... \n\n");
-    //exit(1);
+    exit(1);
   }
 
   close(socket);
@@ -122,10 +124,14 @@ void envoyer_begin(int socket,int rng){
       printf("*******************Accuse de Reception**************************\n");
       printf("ACK\n\n");
       etat=1;
+    } else{
+      printf("La réponse du serveur est différente a l'ésperé\n\n");
+      exit(1);
     }
-    else{}
+  } else{
+    printf("Échec dans la configuration du serveur... \n\n");
+    exit(1);
   }
-  else{}
   close(socket);
 
 }
