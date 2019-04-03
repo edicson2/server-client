@@ -167,6 +167,7 @@ void envoyer_INI(int socket,int id, int cmd){
   {
     //allocations[i] = 0;
     max[i] = rand() % (provisioned_resources[i]+1);
+
   }
   for(int i=0; i<num_resources+3; i++){
     if(i==0)
@@ -193,6 +194,24 @@ void envoyer_INI(int socket,int id, int cmd){
 
 }
 
+/*
+ * Fonction auxiliaire pour générer des nombres aléatoires
+ * negatifs et positifs
+ * */
+int rand_lim(int limit) {
+/* return a random number between 0 and limit inclusive.
+ */
+
+  int divisor = RAND_MAX/(limit+1);
+  int retval;
+
+  do {
+    retval = rand() / divisor;
+  } while (retval > limit);
+
+  return retval;
+}
+
 /*********************************************************************************************************/
 // Vous devez modifier cette fonction pour faire l'envoie des requêtes
 // Les ressources demandées par la requête doivent être choisies aléatoirement
@@ -201,13 +220,44 @@ void envoyer_INI(int socket,int id, int cmd){
 // Assurez-vous que la dernière requête d'un client libère toute les ressources
 // qu'il a jusqu'alors accumulées.
 void
-send_request (int client_id, int request_id, int socket_fd) {
+send_request (int client_id, int request_id, int socket_fd, int cmd) {
 
   // TP2 TODO
 
   //fprintf (stdout, "Client %d is sending its %d request\n", client_id,
   // request_id);
-  envoyer_INI(socket_fd, client_id, REQ);
+  int max[num_resources];
+  int ini_res[num_resources+3];
+  int nb_aleatoire = 0;
+  for(int i = 0; i <num_resources; i++)
+  {
+    //allocations[i] = 0;
+    nb_aleatoire = rand_lim(2 * provisioned_resources[i]);
+    max[i] = nb_aleatoire - provisioned_resources[i];
+
+  }
+  for(int i=0; i<num_resources+3; i++){
+    if(i==0)
+      ini_res[i]=cmd;
+    else if(i==1)
+      ini_res[i]=num_resources;
+    else if(i==2)
+      ini_res[i]=client_id;
+    else
+      ini_res[i]=max[i-3];
+  }
+  send(socket_fd,ini_res,sizeof(ini_res),0);
+  struct cmd_header_t header = { .nb_args = 0};
+  int len=read_socket(socket_fd, &header, sizeof(header),8);
+
+  if(len>0) {
+    if (header.cmd == ACK) {
+      //printf("ACK \n");
+    }
+  } else{
+    printf("Pas de reponse!\n");
+  }
+
 
   // TP2 TODO:END
 
@@ -244,7 +294,7 @@ ct_code (void *param)
 
     //send(socket_fd, tab, sizeof(tab), 0);
     //envoyer_INI(socket_fd,ct->id,  REQ);
-    send_request (ct->id, request_id, socket_fd);
+    send_request (ct->id, request_id, socket_fd, REQ);
 
     // TODO Recevoir et gerer reponses (Wait, Close, etc...)
 

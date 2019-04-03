@@ -102,19 +102,7 @@ void tab_print (int *tab, char *tab_name, int taille) {
   printf("\n\n");
 }
 
-int rand_lim(int limit) {
-/* return a random number between 0 and limit inclusive.
- */
 
-  int divisor = RAND_MAX/(limit+1);
-  int retval;
-
-  do {
-    retval = rand() / divisor;
-  } while (retval > limit);
-
-  return retval;
-}
 
 void initialiser_tableaux (int nb_clients, int nb_ressources) {
 
@@ -139,17 +127,25 @@ void liberer_tableaux (int nb_ressources) {
 
   for (int i = 0; i < nb_ressources; ++i) {
     free(max[i]);
+    max[i] = NULL;
     free(allocation[i]);
+    allocation[i] = NULL;
     free(need[i]);
+    need[i] = NULL;
   }
 
   free(available);
-
+  available = NULL;
   free(total_ressources);
+  total_ressources = NULL;
   free(total_allocation);
+  total_allocation = NULL;
   free(max);
+  max = NULL;
   free(allocation);
+  allocation = NULL;
   free(need);
+  need = NULL;
 }
 
 /* Initialiser tous les casses de max[ct_id][j], allocation[ct_id][j] et
@@ -212,23 +208,18 @@ int recevoir_beg(int socket_fd){
 
 }
 
-
 /*
  * Fonction qui recoit la configuration initial du serveur et qui va ajouter
  * le maximum des ressources disponibles pour les clients.
  * */
 int recevoir_ressource(int socket_fd){
-
-
   int stat = 0;
   struct cmd_header_t header = { .nb_args=0 };
 
   int len = read_socket(socket_fd, &header, sizeof(header),max_wait_time * 1000);
   if (len > 0) {
-
     if(header.cmd==1){
       printf("**************************Ressources*************************\n");
-
       nombre_ressources = header.nb_args;
       initialiser_tableaux(nombre_clients, nombre_ressources);
 
@@ -259,43 +250,6 @@ int recevoir_ressource(int socket_fd){
   }
   close(socket_fd);
   return stat;
-}
-
-
-
-void calculer_need () {
-
-  //pthread_mutex_lock(&need_modifie);
-  for (int i = 0; i < nombre_clients; ++i) {
-    for (int j = 0; j < nombre_ressources; ++j) {
-      need[i][j] = max[i][j] - allocation[i][j];
-    }
-  }
-  //pthread_mutex_unlock(&need_modifie);
-}
-
-void calculer_available () {
-
-  //pthread_mutex_lock(&available_modifie);
-  for (int i = 0; i < nombre_ressources; ++i) {
-    available[i] = total_ressources[i] - total_allocation[i];
-  }
-  //pthread_mutex_unlock(&available_modifie);
-
-}
-
-void calculer_total_allocation () {
-  int add = 0;
-  pthread_mutex_lock(&total_allocation_modifie);
-  for (int i = 0; i < nombre_ressources; ++i) {
-    add = 0;
-    for (int j = 0; j < nombre_clients; ++j) {
-      add += allocation[j][i];
-    }
-    total_allocation[i] = add;
-  }
-  pthread_mutex_unlock(&total_allocation_modifie);
-
 }
 
 /*
@@ -331,7 +285,6 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
   free(work);
   for (int l = 0; l < nb_clients; ++l) {
     if (finish[l] == false) {
-      printf("UNSAFE\n");
       return false;
     }
   }
@@ -341,7 +294,7 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
 
 
 
-// TODO traiter les REQ
+// TODO traiter les CLO, END
 void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
 
   int ressource=0;
@@ -354,7 +307,6 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       if (len > 0) {
         // Remplir les tableaux avec les donnees initiales
         remplir_donnees_initiales(process_id, ressource, j);
-
       } else {
         printf("Erreur de lecture...\n");
         lecture = false;
@@ -513,14 +465,21 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       // Libération des ressources
       for (int n = 0; n < nombre_ressources ; ++n) {
         free(nouvelle_allocation[n]);
+        nouvelle_allocation[n] = NULL;
         free(nouvelle_need[n]);
+        nouvelle_need[n] = NULL;
       }
 
       free(nouvelle_total_allocation);
+      nouvelle_total_allocation = NULL;
       free(nouvelle_need);
+      nouvelle_need = NULL;
       free(nouvelle_allocation);
+      nouvelle_allocation = NULL;
       free(nouvelle_available);
+      nouvelle_available = NULL;
       free(ressources_demandes);
+      ressources_demandes = NULL;
 
     }
   } else if (cmd==CLO) {
