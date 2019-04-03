@@ -35,9 +35,6 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 int etat=0;
 
-pthread_mutex_t envoyer_init;
-int init_envoye = 0;
-
 /*********************************************************************************************************/
 int connect_ct()
 {
@@ -217,17 +214,11 @@ ct_code (void *param)
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
 
-  pthread_mutex_lock(&envoyer_init);
-  if (init_envoye < 5) {
-    printf("init_envoye %d\n", init_envoye);
-    socket_fd=connect_ct();
-    if(etat==0){
-      exit(0);}
-    client_peut_connecter(socket_fd,ct->id);
-    envoyer_INI(socket_fd,ct->id, INIT);
-    init_envoye++;
-  }
-  pthread_mutex_unlock(&envoyer_init);
+  socket_fd=connect_ct();
+  if(etat==0){
+    exit(0);}
+  client_peut_connecter(socket_fd,ct->id);
+  envoyer_INI(socket_fd,ct->id, INIT);
 
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).

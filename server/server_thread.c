@@ -94,7 +94,6 @@ pthread_mutex_t allocation_modifie;
 pthread_mutex_t need_modifie;
 pthread_mutex_t available_modifie;
 
-pthread_mutex_t count_modifie;
 
 
 /********************************************************************************************************************/
@@ -318,6 +317,7 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
       return false;
     }
   }
+  printf("SAFE.\n");
   return true;
 
 }
@@ -352,6 +352,7 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
 
   } else if(cmd==REQ) {
     bool valide = true;
+    int wait_time = 2;
     int *ressources_demandes;
     int *safe_sequence;
     ressources_demandes = malloc(nombre_ressources * sizeof(int));
@@ -392,16 +393,14 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       for (int i = 0; i < nombre_ressources; ++i) {
 
         if (ressources_demandes[i] > need[process_id][i]) {
-          //printf("Erreur! Nombre de ressources demande est plus grande que le maximum.\n");
+          //printf("Erreur! Nombre de ressources demande est plus grande que la quantite necessaire.\n");
           int err[3] = {ERR, 1, -1};
           send(socket_fd, err, sizeof(err), 0);
           break;
-        } else {
-          //printf("pas d'erreur\n");
         }
+        if (ressources_demandes[i] < available[i]) {
 
-        if (ressources_demandes[i] <= available[i]) {
-          int ct_wait[3] = {WAIT, 1, 2};
+          int ct_wait[3] = {WAIT, 1, wait_time};
           //printf("Le client doit attendre %d secondes\n", ct_wait[2]);
           send(socket_fd, ct_wait, sizeof(ct_wait), 0);
         }
@@ -463,11 +462,17 @@ void gerer_requete(int socket_fd,int cmd,int nb_args, int process_id){
       }
       pthread_mutex_unlock(&need_modifie);
 
+      if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
+              nouvelle_need, nouvelle_allocation) ) {
+        // bloquer les tableaux qui seront modifies
 
-      safe_state (nombre_clients, nombre_ressources, nouvelle_available,
-              nouvelle_need, nouvelle_allocation);
 
-
+        // faire les changements
+      } else {
+        int ct_wait[3] = {WAIT, 1, wait_time};
+        //printf("Le client doit attendre %d secondes\n", ct_wait[2]);
+        send(socket_fd, ct_wait, sizeof(ct_wait), 0);
+      }
 
 
 

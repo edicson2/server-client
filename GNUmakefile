@@ -2,7 +2,7 @@ CLIENT_DIR=client
 SERVER_DIR=server
 BUILD_DIR=build
 TIMEOUT=10
-VALGRIND=valgrind --leak-check=yes --error-exitcode=1
+VALGRIND=valgrind --leak-check=full --error-exitcode=1
 CC=gcc
 CFLAGS=-g -std=c99 -Wall -pedantic -pthread -I./common
 LDFLAGS=-pthread
