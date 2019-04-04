@@ -34,6 +34,7 @@ unsigned int count_dispatched = 0;
 // Nombre total de requêtes envoyées.
 unsigned int request_sent = 0;
 int etat=0;
+int max_wait_time = 30;
 
 /*********************************************************************************************************/
 int connect_ct()
@@ -83,12 +84,11 @@ void envoyer_ressource(int socket){
       provision_res[i]=num_resources;
     else
       provision_res[i]=provisioned_resources[i-2];
-
   }
   send(socket, provision_res, sizeof(provision_res) ,0);
 
   struct cmd_header_t header = { .nb_args = 0};
-  int len=read_socket(socket, &header, sizeof(header),8);
+  int len=read_socket(socket, &header, sizeof(header), max_wait_time * 1000);
 
   if(len>0){
     if(header.cmd==ACK){
@@ -117,7 +117,7 @@ void envoyer_begin(int socket,int rng){
 
   struct cmd_header_t header = { .nb_args = 0};
 
-  int len=read_socket(socket, &header, sizeof(header),8);
+  int len=read_socket(socket, &header, sizeof(header),max_wait_time * 1000);
 
   if(len>0){
     if(header.cmd==ACK){
@@ -181,7 +181,7 @@ void envoyer_INI(int socket,int id, int cmd){
   }
   send(socket,ini_res,sizeof(ini_res),0);
   struct cmd_header_t header = { .nb_args = 0};
-  int len=read_socket(socket, &header, sizeof(header),8);
+  int len=read_socket(socket, &header, sizeof(header), max_wait_time * 1000);
 
   if(len>0) {
     if (header.cmd == ACK) {
@@ -222,8 +222,6 @@ int rand_lim(int limit) {
 void
 send_request (int client_id, int request_id, int socket_fd, int cmd) {
 
-  // TP2 TODO
-
   //fprintf (stdout, "Client %d is sending its %d request\n", client_id,
   // request_id);
   int max[num_resources];
@@ -234,8 +232,8 @@ send_request (int client_id, int request_id, int socket_fd, int cmd) {
     //allocations[i] = 0;
     nb_aleatoire = rand_lim(2 * provisioned_resources[i]);
     max[i] = nb_aleatoire - provisioned_resources[i];
-
   }
+
   for(int i=0; i<num_resources+3; i++){
     if(i==0)
       ini_res[i]=cmd;
@@ -246,21 +244,37 @@ send_request (int client_id, int request_id, int socket_fd, int cmd) {
     else
       ini_res[i]=max[i-3];
   }
+
   send(socket_fd,ini_res,sizeof(ini_res),0);
   struct cmd_header_t header = { .nb_args = 0};
-  int len=read_socket(socket_fd, &header, sizeof(header),8);
+  int len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
 
   if(len>0) {
     if (header.cmd == ACK) {
       //printf("ACK \n");
+    } else if (header.cmd == WAIT) {
+      // TODO Recevoir et gerer reponses (Wait)
+      while (header.cmd== WAIT) {
+        close(socket_fd);
+        socket_fd = connect_ct();
+        send(socket_fd,ini_res,sizeof(ini_res),0);
+        len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+        if (len > 0) {
+          continue;
+        }
+      }
+      /* Si on recoit wait alors on doit entrer dans une boucle
+       * while (on recoit pas ACK ) {
+       *
+       * }
+       */
+    } else {
+      // header.cmd == ERR
+
     }
   } else{
     printf("Pas de reponse!\n");
   }
-
-
-  // TP2 TODO:END
-
 }
 
 void *
@@ -296,7 +310,6 @@ ct_code (void *param)
     //envoyer_INI(socket_fd,ct->id,  REQ);
     send_request (ct->id, request_id, socket_fd, REQ);
 
-    // TODO Recevoir et gerer reponses (Wait, Close, etc...)
 
 // TP2 TODO:END
 
