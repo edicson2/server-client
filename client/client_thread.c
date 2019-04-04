@@ -35,6 +35,8 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 int etat=0;
 int max_wait_time = 30;
+pthread_mutex_t test;
+
 
 /*********************************************************************************************************/
 int connect_ct()
@@ -212,6 +214,7 @@ int rand_lim(int limit) {
   return retval;
 }
 
+
 /*********************************************************************************************************/
 // Vous devez modifier cette fonction pour faire l'envoie des requêtes
 // Les ressources demandées par la requête doivent être choisies aléatoirement
@@ -220,10 +223,10 @@ int rand_lim(int limit) {
 // Assurez-vous que la dernière requête d'un client libère toute les ressources
 // qu'il a jusqu'alors accumulées.
 void
-send_request (int client_id, int request_id, int socket_fd, int cmd) {
+send_request (int client_id, int request_id, int socket_fd) {
 
-  //fprintf (stdout, "Client %d is sending its %d request\n", client_id,
-  // request_id);
+  fprintf (stdout, "Client %d is sending its %d request\n", client_id,
+   request_id);
   int max[num_resources];
   int ini_res[num_resources+3];
   int nb_aleatoire = 0;
@@ -236,7 +239,7 @@ send_request (int client_id, int request_id, int socket_fd, int cmd) {
 
   for(int i=0; i<num_resources+3; i++){
     if(i==0)
-      ini_res[i]=cmd;
+      ini_res[i]=REQ;
     else if(i==1)
       ini_res[i]=num_resources;
     else if(i==2)
@@ -252,30 +255,64 @@ send_request (int client_id, int request_id, int socket_fd, int cmd) {
   if(len>0) {
     if (header.cmd == ACK) {
       //printf("ACK \n");
+
+
     } else if (header.cmd == WAIT) {
-      // TODO Recevoir et gerer reponses (Wait)
-      while (header.cmd== WAIT) {
-        close(socket_fd);
+
+      int temps = 0;
+      if (header.nb_args > 0) {
+        len=read_socket(socket_fd, &temps, sizeof(temps), max_wait_time * 1000);
+
+        if (len > 0) {
+          printf("process %d va dormir pendant %d secondes\n", client_id, temps);
+          sleep(temps);
+        } else {
+          printf("Le temps d'attend n'a pas ete specifie.\n");
+          printf("Dormir pendant 2 secondes");
+          sleep(2);
+        }
+      } else {
+        printf("Erreur. Les arguments ne sont pas complets");
+      }
+      close(socket_fd);
+
+
+      // TODO Verifier l'algo du banquiste :(
+     /* while (header.cmd != ACK) {
         socket_fd = connect_ct();
+        printf("Client %d is sending %d requete...\n", client_id, request_id);
         send(socket_fd,ini_res,sizeof(ini_res),0);
         len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
-        if (len > 0) {
+        if (len < 0) {
+          printf("Rien a lire!\n");
           continue;
         }
-      }
-      /* Si on recoit wait alors on doit entrer dans une boucle
-       * while (on recoit pas ACK ) {
-       *
-       * }
-       */
+        close(socket_fd);
+      }*/
     } else {
       // header.cmd == ERR
-
+      printf("On a obtenu un erreur");
     }
   } else{
     printf("Pas de reponse!\n");
   }
 }
+
+
+void send_close(int client_id, int socket_fd) {
+  int close[3] = {CLO, 1, client_id};
+  printf("Client %d envoi close\n", client_id);
+  socket_fd=connect_ct();
+  send(socket_fd, close, sizeof(close), 0);
+  struct cmd_header_t header = { .nb_args = 0};
+  int len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+  if (len > 0 && header.cmd == ACK) {
+    printf("Le serveur a libere les ressources du client");
+  } else {
+    printf("Pas de reponse du serveur.\n");
+  }
+}
+
 
 void *
 ct_code (void *param)
@@ -308,7 +345,7 @@ ct_code (void *param)
 
     //send(socket_fd, tab, sizeof(tab), 0);
     //envoyer_INI(socket_fd,ct->id,  REQ);
-    send_request (ct->id, request_id, socket_fd, REQ);
+    send_request (ct->id, request_id, socket_fd);
 
 
 // TP2 TODO:END
@@ -322,8 +359,11 @@ ct_code (void *param)
      * nanosleep (&delay, NULL); */
 
   }
-  //free(tab);
+
   close(socket_fd);
+
+  send_close(ct->id, socket_fd);
+
   pthread_exit (NULL);
 }
 
