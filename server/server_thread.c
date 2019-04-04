@@ -53,7 +53,7 @@ unsigned int clients_ended = 0;
 // TODO: Ajouter vos structures de données partagées, ici.
 int nombre_ressources = 0;
 int nombre_clients = 0;
-int wait_time = 1;
+int wait_time = 2;
 
 int *total_ressources;
 int **max;
@@ -66,6 +66,7 @@ int *total_allocation;
 
 int *requete_en_attend;
 
+// TODO INITIALISER les mutex!
 
 // Mutex pour la modificacion des nombre de requetes
 pthread_mutex_t accepte_sans_delai;
@@ -305,6 +306,9 @@ int recevoir_ressource(int socket_fd){
 
 
 
+
+
+
 // TODO FONCTION TEST
 // nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
 void tab_test(int lignes, int colonnes, int p_id,int **nouvelle_alloc, int *ress) {
@@ -318,7 +322,6 @@ void tab_test(int lignes, int colonnes, int p_id,int **nouvelle_alloc, int *ress
   }
 }
 
-
 // TODO FONCTION TEST
 // nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
 void tab_test2(int lignes, int colonnes, int p_id,int **nouvelle_need, int *ress) {
@@ -331,6 +334,11 @@ void tab_test2(int lignes, int colonnes, int p_id,int **nouvelle_need, int *ress
     }
   }
 }
+
+
+
+
+
 
 
 
@@ -370,9 +378,11 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
   free(work);
   for (int l = 0; l < nb_clients; ++l) {
     if (finish[l] == false) {
+      printf("UNSAFE;\n");
       return false;
     }
   }
+  printf("SAFE!;\n");
   return true;
 
 }
@@ -449,22 +459,23 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
       for (int i = 0; i < nombre_ressources; ++i) {
 
         // TODO La plus part des requetes vont rentrer dans cet condition qui retourne un erreur
-        /*if (ressources_demandes[i] > need[process_id][i]) {
-          printf("ressources demandes sont plus grandes que necessaires");
+        if (ressources_demandes[i] > need[process_id][i]) {
+          printf("ressources demandes sont plus grandes que necessaires\n");
           int err[3] = {ERR, 1, -1};
+          // TODO apres on envoi les messages
           send(socket_fd, err, sizeof(err), 0);
           erreur_envoye();
           pthread_mutex_lock(&erreur_apres_requete);
-          printf("count_invalid = %d", count_invalid);
+          printf("count_invalid = %d\n", count_invalid);
           pthread_mutex_unlock(&erreur_apres_requete);
           break;
-        }*/
-        if (ressources_demandes[i] < available[i]) {
+        }
+
+        if (ressources_demandes[i] > available[i]) {
           wait = true;
           break;
         }
       }
-
       if (wait) {
         int ct_wait[3] = {WAIT, 1, wait_time};
         send(socket_fd, ct_wait, sizeof(ct_wait), 0);
@@ -490,45 +501,18 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
           nouvelle_allocation[m] = malloc(nombre_ressources * sizeof(int));
           nouvelle_need[m] = malloc(nombre_ressources * sizeof(int));
         }
-        //pthread_mutex_unlock(&memoire);
-
-        //pthread_mutex_lock(&available_modifie);
 
         for (int k = 0; k < nombre_ressources; ++k) {
           nouvelle_available[k] = available[k] - ressources_demandes[k];
         }
-        //pthread_mutex_unlock(&available_modifie);
 
-        //pthread_mutex_lock(&allocation_modifie);
-        /*for (int i = 0; i < nombre_clients ; ++i) {
-          for (int j = 0; j < nombre_ressources; ++j) {
-            if(i == process_id) {
-              nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
-            }
-            nouvelle_allocation[i][j] = allocation[i][j];
-          }
-        }*/
         tab_test(nombre_clients, nombre_ressources, process_id, nouvelle_allocation, ressources_demandes);
-        //pthread_mutex_unlock(&allocation_modifie);
 
-
-        //pthread_mutex_lock(&total_allocation_modifie);
         for (int i1 = 0; i1 < nombre_ressources; ++i1) {
           nouvelle_total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
         }
-        //pthread_mutex_unlock(&total_allocation_modifie);
 
-        //pthread_mutex_lock(&need_modifie);
-        /*for (int l = 0; l < nombre_clients; ++l) {
-          for (int i = 0; i < nombre_ressources; ++i) {
-            if (l == process_id) {
-              nouvelle_need[process_id][i] = need[process_id][i] - ressources_demandes[i];
-            }
-            nouvelle_need[l][i] = need[l][i];
-          }
-        }*/
         tab_test2(nombre_clients, nombre_ressources, process_id, nouvelle_need, ressources_demandes);
-        //pthread_mutex_unlock(&need_modifie);
 
         if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
                         nouvelle_need, nouvelle_allocation) ) {
@@ -537,30 +521,19 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
 
 
           pthread_mutex_lock(&bankers_algo);
-          //pthread_mutex_lock(&available_modifie);
+
           for (int i = 0; i < nombre_ressources; ++i) {
             available[i] = available[i] - ressources_demandes[i];
           }
-          //pthread_mutex_unlock(&available_modifie);
-
-          //pthread_mutex_lock(&allocation_modifie);
           for (int j = 0; j < nombre_ressources; ++j) {
             allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
           }
-          //pthread_mutex_unlock(&allocation_modifie);
-
-          //pthread_mutex_lock(&need_modifie);
           for (int j = 0; j < nombre_ressources; ++j) {
             need[process_id][j] = need[process_id][j] - ressources_demandes[j];
           }
-          //pthread_mutex_unlock(&need_modifie);
-
-          //pthread_mutex_lock(&total_allocation_modifie);
           for (int i1 = 0; i1 < nombre_ressources; ++i1) {
             total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
           }
-          //pthread_mutex_unlock(&total_allocation_modifie);
-
           pthread_mutex_unlock(&bankers_algo);
 
           int ack[2] = {ACK, 0};
@@ -577,9 +550,9 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
           int ct_wait[3] = {WAIT, 1, wait_time};
           //printf("Le client doit attendre %d secondes\n", ct_wait[2]);
           send(socket_fd, ct_wait, sizeof(ct_wait), 0);
-          pthread_mutex_lock(&en_attendant);
+          //pthread_mutex_lock(&en_attendant);
           requete_en_attend[process_id] = 1;
-          pthread_mutex_unlock(&en_attendant);
+          //pthread_mutex_unlock(&en_attendant);
         }
 
         // Libération des ressources
@@ -619,8 +592,7 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
     client_fini();
   } else if (cmd == END) {
 
-    // On va arreter tous les st ou quoi?
-
+    // TODO le derniere client (same that BEGIN)
 
   } else{
     printf("Erreur : La commande n'est pas encore supportée.\n");
@@ -685,23 +657,20 @@ st_process_requests (server_thread * st, int socket_fd)
       printf ("Thread %d received invalid command size=%d!\n", st->id, len);
     } else {
       printf("\nThread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
-      if (header.cmd != END) {
 
-        if (header.nb_args > 0) {
-          int process_id;
-          len = read_socket(socket_fd, &process_id, sizeof(process_id), max_wait_time*1000);
-          if (len > 0) {
-            gerer_requete(socket_fd,header.cmd,header.nb_args, process_id);
-          } else {
-            printf("Erreur de lecture... \n");
-          }
-
-
-        }
+      int process_id;
+      len = read_socket(socket_fd, &process_id, sizeof(process_id), max_wait_time*1000);
+      if (len > 0) {
+        gerer_requete(socket_fd,header.cmd,header.nb_args, process_id);
+      } else {
+        printf("Erreur de lecture... \n");
+      }
+      /*if (header.cmd != INIT) {
 
       } else {
         // finir l'execution du thread serveur
-      }
+        printf("SHIT!");
+      }*/
 
     }
 

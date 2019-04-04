@@ -48,6 +48,7 @@ main (int argc, char *argv[argc + 1])
   }
   st_print_results (fp, false);
   fclose(fp);
+  free(st);
 
   return EXIT_SUCCESS;
 }

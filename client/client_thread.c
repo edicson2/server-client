@@ -160,7 +160,7 @@ void client_peut_connecter(int socket,int id){
   }
 }
 
-void envoyer_INI(int socket,int id, int cmd){
+void envoyer_INI(int socket, int id){
   //Initialisation du client
 
   int max[num_resources];
@@ -173,7 +173,7 @@ void envoyer_INI(int socket,int id, int cmd){
   }
   for(int i=0; i<num_resources+3; i++){
     if(i==0)
-      ini_res[i]=cmd;
+      ini_res[i]=INIT;
     else if(i==1)
       ini_res[i]=num_resources;
     else if(i==2)
@@ -276,11 +276,9 @@ send_request (int client_id, int request_id, int socket_fd) {
       }
       close(socket_fd);
 
-
-      // TODO Verifier l'algo du banquiste parce qu'on sorte jamais:(
-     /* while (header.cmd != ACK) {
+      /*while (header.cmd != ACK) {
         socket_fd = connect_ct();
-        printf("Client %d is sending %d requete...\n", client_id, request_id);
+        printf("WAIT ---> Client %d is sending %d requete...\n", client_id, request_id);
         send(socket_fd,ini_res,sizeof(ini_res),0);
         len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
         if (len < 0) {
@@ -324,7 +322,7 @@ ct_code (void *param)
   if(etat==0){
     exit(0);}
   client_peut_connecter(socket_fd,ct->id);
-  envoyer_INI(socket_fd,ct->id, INIT);
+  envoyer_INI(socket_fd, ct->id);
 
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
@@ -365,7 +363,7 @@ ct_code (void *param)
 
   close(socket_fd);
 
-  send_close(ct->id, socket_fd);
+  //send_close(ct->id, socket_fd);
 
   pthread_exit (NULL);
 }
