@@ -53,7 +53,7 @@ unsigned int clients_ended = 0;
 // TODO: Ajouter vos structures de données partagées, ici.
 int nombre_ressources = 0;
 int nombre_clients = 0;
-int wait_time = 0;
+int wait_time = 1;
 
 int *total_ressources;
 int **max;
@@ -239,7 +239,7 @@ int recevoir_beg(int socket_fd){
         send(socket_fd, err, sizeof(err), 0);
       }
     } else {
-      printf("ERR\n");
+      printf("\nLe serveur ne peut pas etre initialisé\n");
       stat = -1;
     }
   }else{
@@ -298,6 +298,44 @@ int recevoir_ressource(int socket_fd){
   close(socket_fd);
   return stat;
 }
+
+
+
+
+
+
+
+// TODO FONCTION TEST
+// nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
+void tab_test(int lignes, int colonnes, int p_id,int **nouvelle_alloc, int *ress) {
+  for (int i = 0; i < lignes; ++i) {
+    for (int j = 0; j < colonnes; ++j) {
+      if (i == p_id) {
+        nouvelle_alloc[p_id][j] = allocation[p_id][j] + ress[j];
+      }
+      nouvelle_alloc[i][j] = allocation[i][j];
+    }
+  }
+}
+
+
+// TODO FONCTION TEST
+// nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
+void tab_test2(int lignes, int colonnes, int p_id,int **nouvelle_need, int *ress) {
+  for (int i = 0; i < lignes; ++i) {
+    for (int j = 0; j < colonnes; ++j) {
+      if (i == p_id) {
+        nouvelle_need[p_id][j] = need[p_id][j] + ress[j];
+      }
+      nouvelle_need[i][j] = need[i][j];
+    }
+  }
+}
+
+
+
+
+
 
 /*
  * Fonction qui va vérifier si dans l'etat actuelle il est possible
@@ -410,6 +448,7 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
 
       for (int i = 0; i < nombre_ressources; ++i) {
 
+        // TODO La plus part des requetes vont rentrer dans cet condition qui retourne un erreur
         /*if (ressources_demandes[i] > need[process_id][i]) {
           printf("ressources demandes sont plus grandes que necessaires");
           int err[3] = {ERR, 1, -1};
@@ -435,11 +474,12 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
       } else {
         // ALgorithme du banquier
 
+
         // Essayer d'allouer la ressource pour process_id pour calculer
         // un nouvel etat hypothetique
 
         // Allocation
-        pthread_mutex_lock(&memoire);
+        //pthread_mutex_lock(&memoire);
         int *nouvelle_available = malloc(nombre_ressources * sizeof(int));
         int **nouvelle_allocation = malloc(sizeof(int*) * nombre_clients);
         int **nouvelle_need = malloc(sizeof(int*) * nombre_clients);
@@ -450,74 +490,76 @@ void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
           nouvelle_allocation[m] = malloc(nombre_ressources * sizeof(int));
           nouvelle_need[m] = malloc(nombre_ressources * sizeof(int));
         }
-        pthread_mutex_unlock(&memoire);
+        //pthread_mutex_unlock(&memoire);
 
-        pthread_mutex_lock(&available_modifie);
-        //pthread_mutex_lock(&nouv_available_modifie);
+        //pthread_mutex_lock(&available_modifie);
+
         for (int k = 0; k < nombre_ressources; ++k) {
           nouvelle_available[k] = available[k] - ressources_demandes[k];
         }
-        //pthread_mutex_unlock(&nouv_available_modifie);
-        pthread_mutex_unlock(&available_modifie);
+        //pthread_mutex_unlock(&available_modifie);
 
-        pthread_mutex_lock(&allocation_modifie);
-        for (int i = 0; i < nombre_clients ; ++i) {
+        //pthread_mutex_lock(&allocation_modifie);
+        /*for (int i = 0; i < nombre_clients ; ++i) {
           for (int j = 0; j < nombre_ressources; ++j) {
             if(i == process_id) {
               nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
             }
             nouvelle_allocation[i][j] = allocation[i][j];
           }
-        }
-        pthread_mutex_unlock(&allocation_modifie);
+        }*/
+        tab_test(nombre_clients, nombre_ressources, process_id, nouvelle_allocation, ressources_demandes);
+        //pthread_mutex_unlock(&allocation_modifie);
 
 
-        pthread_mutex_lock(&total_allocation_modifie);
+        //pthread_mutex_lock(&total_allocation_modifie);
         for (int i1 = 0; i1 < nombre_ressources; ++i1) {
           nouvelle_total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
         }
-        pthread_mutex_unlock(&total_allocation_modifie);
+        //pthread_mutex_unlock(&total_allocation_modifie);
 
-        pthread_mutex_lock(&need_modifie);
-        for (int l = 0; l < nombre_clients; ++l) {
+        //pthread_mutex_lock(&need_modifie);
+        /*for (int l = 0; l < nombre_clients; ++l) {
           for (int i = 0; i < nombre_ressources; ++i) {
             if (l == process_id) {
               nouvelle_need[process_id][i] = need[process_id][i] - ressources_demandes[i];
             }
             nouvelle_need[l][i] = need[l][i];
           }
-        }
-        pthread_mutex_unlock(&need_modifie);
+        }*/
+        tab_test2(nombre_clients, nombre_ressources, process_id, nouvelle_need, ressources_demandes);
+        //pthread_mutex_unlock(&need_modifie);
 
         if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
                         nouvelle_need, nouvelle_allocation) ) {
 
           // Modifications dans les tableaux principaux
-          pthread_mutex_lock(&bankers_algo);
 
-          pthread_mutex_lock(&available_modifie);
+
+          pthread_mutex_lock(&bankers_algo);
+          //pthread_mutex_lock(&available_modifie);
           for (int i = 0; i < nombre_ressources; ++i) {
             available[i] = available[i] - ressources_demandes[i];
           }
-          pthread_mutex_unlock(&available_modifie);
+          //pthread_mutex_unlock(&available_modifie);
 
-          pthread_mutex_lock(&allocation_modifie);
+          //pthread_mutex_lock(&allocation_modifie);
           for (int j = 0; j < nombre_ressources; ++j) {
             allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
           }
-          pthread_mutex_unlock(&allocation_modifie);
+          //pthread_mutex_unlock(&allocation_modifie);
 
-          pthread_mutex_lock(&need_modifie);
+          //pthread_mutex_lock(&need_modifie);
           for (int j = 0; j < nombre_ressources; ++j) {
             need[process_id][j] = need[process_id][j] - ressources_demandes[j];
           }
-          pthread_mutex_unlock(&need_modifie);
+          //pthread_mutex_unlock(&need_modifie);
 
-          pthread_mutex_lock(&total_allocation_modifie);
+          //pthread_mutex_lock(&total_allocation_modifie);
           for (int i1 = 0; i1 < nombre_ressources; ++i1) {
             total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
           }
-          pthread_mutex_unlock(&total_allocation_modifie);
+          //pthread_mutex_unlock(&total_allocation_modifie);
 
           pthread_mutex_unlock(&bankers_algo);
 

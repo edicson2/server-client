@@ -277,7 +277,7 @@ send_request (int client_id, int request_id, int socket_fd) {
       close(socket_fd);
 
 
-      // TODO Verifier l'algo du banquiste :(
+      // TODO Verifier l'algo du banquiste parce qu'on sorte jamais:(
      /* while (header.cmd != ACK) {
         socket_fd = connect_ct();
         printf("Client %d is sending %d requete...\n", client_id, request_id);
@@ -307,7 +307,7 @@ void send_close(int client_id, int socket_fd) {
   struct cmd_header_t header = { .nb_args = 0};
   int len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
   if (len > 0 && header.cmd == ACK) {
-    printf("Le serveur a libere les ressources du client");
+    printf("Le serveur a libere les ressources du client\n");
   } else {
     printf("Pas de reponse du serveur.\n");
   }
@@ -346,6 +346,9 @@ ct_code (void *param)
     //send(socket_fd, tab, sizeof(tab), 0);
     //envoyer_INI(socket_fd,ct->id,  REQ);
     send_request (ct->id, request_id, socket_fd);
+    // TODO la derniere requerte doit faire la  liberation de tous les ressources du client
+    // TODO On devrait avoir un tableau 2D avec le nombre de ressources alloues pour chaque client
+        // et la modifie a chaque fois qu'on fais un send_request
 
 
 // TP2 TODO:END
