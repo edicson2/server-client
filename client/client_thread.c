@@ -35,6 +35,7 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 int etat=0;
 int max_wait_time = 30;
+int client_connectes = 0;
 pthread_mutex_t test;
 
 
@@ -43,6 +44,7 @@ pthread_mutex_t avec_delai_ct;
 pthread_mutex_t refusee;
 pthread_mutex_t recoit_end;
 pthread_mutex_t requete_total;
+pthread_mutex_t compteur;
 
 
 
@@ -251,12 +253,6 @@ int rand_lim(int limit) {
 void
 send_request (int client_id, int request_id, int socket_fd) {
 
-  if (request_id == num_request_per_client - 2) {
-    // envoi de close
-  }
-  if (request_id == num_request_per_client - 1) {
-    // envoi de END
-  }
   fprintf (stdout, "Client %d is sending its %d request\n", client_id,
            request_id);
   int max[num_resources];
@@ -269,75 +265,113 @@ send_request (int client_id, int request_id, int socket_fd) {
     max[i] = nb_aleatoire - provisioned_resources[i];
   }
 
-  for(int i=0; i<num_resources+3; i++){
-    if(i==0)
-      ini_res[i]=REQ;
-    else if(i==1)
-      ini_res[i]=num_resources;
-    else if(i==2)
-      ini_res[i]=client_id;
-    else
-      ini_res[i]=max[i-3];
-  }
-
-  send(socket_fd,ini_res,sizeof(ini_res),0);
-  struct cmd_header_t header = { .nb_args = 0};
-  int len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
-
-  if(len>0) {
-    if (header.cmd == ACK) {
-      printf("Reponse du serveur recu.\n");
-      rapide();
-
-    } else if (header.cmd == WAIT) {
-
-      int temps = 0;
-      if (header.nb_args > 0) {
-        len=read_socket(socket_fd, &temps, sizeof(temps), max_wait_time * 1000);
-
-        if (len > 0) {
-          printf("process %d va dormir pendant %d secondes\n", client_id, temps);
-          sleep(temps);
+  if (request_id == num_request_per_client - 1) {
+    if (client_connectes > 1) {
+      int close[3] = {CLO, 1, client_id};
+      send(socket_fd, close, sizeof(close),0);
+      struct cmd_header_t header = { .nb_args = 0};
+      int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
+      if (len > 0) {
+        if (header.cmd == ACK) {
+          termime();
+          printf("Le client est fini.\n");
         } else {
-          printf("Le temps d'attend n'a pas ete specifie.\n");
-          printf("Dormir pendant 2 secondes");
-          sleep(2);
+          printf("Erreur dans la fin du client.\n");
         }
-      } else {
-        printf("Erreur. Les arguments ne sont pas complets");
       }
-      close(socket_fd);
+    } if (client_connectes == 1) {
+      // END
+    } else {
+      // ERROR Pas de Clients connectes
+    }
+  } else { // REQ
+    for(int i=0; i<num_resources+3; i++){
+      if(i==0)
+        ini_res[i]=REQ;
+      else if(i==1)
+        ini_res[i]=num_resources;
+      else if(i==2)
+        ini_res[i]=client_id;
+      else
+        ini_res[i]=max[i-3];
+    }
 
-      while (header.cmd != ACK) {
-        socket_fd = connect_ct();
-        printf("WAIT ---> Client %d is sending %d requete...\n", client_id, request_id);
-        send(socket_fd,ini_res,sizeof(ini_res),0);
-        len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
-        if (len < 0) {
-          printf("Rien a lire!\n");
-          continue;
+    send(socket_fd,ini_res,sizeof(ini_res),0);
+    envoie();
+    struct cmd_header_t header = { .nb_args = 0};
+    int len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+
+    if(len>0) {
+      if (header.cmd == ACK) {
+        printf("Reponse du serveur recu.\n");
+        rapide();
+
+      } else if (header.cmd == WAIT) {
+
+        int temps = 0;
+        if (header.nb_args > 0) {
+          len=read_socket(socket_fd, &temps, sizeof(temps), max_wait_time * 1000);
+
+          if (len > 0) {
+            printf("process %d va dormir pendant %d secondes\n", client_id, temps);
+            sleep(temps);
+          } else {
+            printf("Le temps d'attend n'a pas ete specifie.\n");
+            printf("Dormir pendant 2 secondes");
+            sleep(2);
+          }
+        } else {
+          printf("Erreur. Les arguments ne sont pas complets\n");
         }
         close(socket_fd);
-      }
-      printf("Reponse tardif du serveur recu.\n");
-      waited();
-    } else { // header.cmd == ERR
-      printf("On a obtenu un erreur \n\n");
-      rejete();
-      /*int taille = header.nb_args;
-      char message[taille];
-      char message_recu[taille + 1];
-      len=read_socket(socket_fd, &message, sizeof(message), max_wait_time * 1000);
-      for (int i = 0; i < strlen(message); ++i) {
-        message_recu[i] = message[i];
-      }
-      message_recu[taille] = '\0';
 
-      printf("Message : %s", message_recu);*/
+        /*while (1) {
+          socket_fd = connect_ct();
+          send(socket_fd,ini_res,sizeof(ini_res),0);
+          len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
+          if (len < 0) {
+            printf("Rien a lire!\n");
+            rejete();
+            break;
+          } else {
+            if (header.cmd == ACK) {
+              printf("Reponse tardif du serveur recu.\n");
+              waited();
+              break;
+            } else if (header.cmd == ERR) {
+              printf("Errur obtenu pendant l'attente.\n");
+              rejete();
+              break;
+            } else {
+              //printf("WAIT ---> Client %d is sending %d requete...\n", client_id, request_id);
+              close(socket_fd);
+            }
+          }
+          close(socket_fd);
+        }*/
+      } else { // header.cmd == ERR
+        printf("On a obtenu un erreur \n\n");
+        rejete();
+        /*int taille = header.nb_args;
+        char message[taille];
+        char message_recu[taille + 1];
+        len=read_socket(socket_fd, &message, sizeof(message), max_wait_time * 1000);
+        for (int i = 0; i < strlen(message); ++i) {
+          message_recu[i] = message[i];
+        }
+        message_recu[taille] = '\0';
+
+        printf("Message : %s", message_recu);*/
+      }
     }
-  } else{
-    printf("Pas de reponse!\n");
+    else{
+      printf("Pas de reponse!\n");
+      rejete();
+    }
   }
+
+
+
 }
 
 
@@ -353,6 +387,12 @@ void envoie_config(int nb_cl){
 void *
 ct_code (void *param)
 {
+
+  pthread_mutex_lock(&compteur);
+  client_connectes++;
+  pthread_mutex_unlock(&compteur);
+
+
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
   socket_fd=connect_ct();
@@ -377,7 +417,6 @@ ct_code (void *param)
     // le protocole d'envoi de requête.
 
     send_request (ct->id, request_id, socket_fd);
-    envoie();
 
 
     // TODO la derniere requerte doit faire la  liberation de tous les ressources du client
@@ -398,6 +437,9 @@ ct_code (void *param)
   }
 
   close(socket_fd);
+  pthread_mutex_lock(&compteur);
+  client_connectes--;
+  pthread_mutex_unlock(&compteur);
 
   //send_close(ct->id, socket_fd);
 

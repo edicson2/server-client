@@ -353,6 +353,7 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
   free(work);
   for (int l = 0; l < nb_clients; ++l) {
     if (finish[l] == false) {
+      printf("UNSAFE\n");
       return false;
     }
   }
@@ -413,17 +414,18 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
         break;
       }
 
-      if (available[i] - ressources_demandes[i] < total_ressources[i]) {
+      /*if (available[i] + ressources_demandes[i] > total_ressources[i]) {
         printf("Les ressources demandes depassent le total disponible pour les clients\n");
         int err[3] = {ERR, 1, -1};
         send(socket_fd, err, sizeof(err), 0);
         erreur_envoye();
         valide = false;
         break;
-      }
+      }*/
 
       if ( available[i] - ressources_demandes[i] < 0 ) {
         printf("Les ressources demandes ne sont pas disponibles en ce moment...\n");
+        printf("Le client doit attendre\n");
         wait = true;
         break;
       }
@@ -438,7 +440,7 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       }
 
       if (need[process_id][i] - ressources_demandes[i] < 0) {
-        printf("Le client a demande plus de ressources qui est necessaire\n\n");
+        printf("Le client a demande plus de ressources qu'il a besoin\n");
         int err[3] = {ERR, 1, -1};
         send(socket_fd, err, sizeof(err), 0);
         erreur_envoye();
@@ -471,7 +473,7 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       // Essayer d'allouer les ressources pour process_id pour calculer
       // un nouvel etat hypothetique
 
-      pthread_mutex_lock(&bankers_algo);
+
       int *nouvelle_available = malloc(nombre_ressources * sizeof(int));
       int **nouvelle_allocation = malloc(sizeof(int*) * nombre_clients);
       int **nouvelle_need = malloc(sizeof(int*) * nombre_clients);
@@ -495,6 +497,7 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       }
       calcul_tab2(nombre_clients, nombre_ressources, process_id, nouvelle_need, ressources_demandes);
 
+      pthread_mutex_lock(&bankers_algo);
       if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
                       nouvelle_need, nouvelle_allocation) ) {
 
@@ -559,8 +562,13 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
 }
 
 void gerer_clo (int socket_fd, int nb_args, int process_id) {
-  clo_recu();
-  // Le client annonce la fin
+  clo_recu(); // Le client annonce la fin
+
+  pthread_mutex_lock(&bankers_algo);
+  for (int i = 0; i < nombre_ressources; ++i) {
+
+  }
+  pthread_mutex_unlock(&bankers_algo);
 
   // Le serveur cherche les donne du client qui se trouvent dans les tableaux allocation et need
   // bloquer chaque tableau et faire la modification pour
