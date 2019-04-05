@@ -144,7 +144,6 @@ void clo_recu() {
   pthread_mutex_unlock(&client_ferme);
 }
 
-
 void initialiser_tableaux (int nb_clients, int nb_ressources) {
 
   total_ressources = malloc(sizeof(int) * nb_ressources);
@@ -300,15 +299,7 @@ int recevoir_ressource(int socket_fd){
   return stat;
 }
 
-
-
-
-
-
-
-// TODO FONCTION TEST
-// nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
-void tab_test(int lignes, int colonnes, int p_id,int **nouvelle_alloc, int *ress) {
+void calcul_tab(int lignes, int colonnes, int p_id,int **nouvelle_alloc, int *ress) {
   for (int i = 0; i < lignes; ++i) {
     for (int j = 0; j < colonnes; ++j) {
       if (i == p_id) {
@@ -320,9 +311,7 @@ void tab_test(int lignes, int colonnes, int p_id,int **nouvelle_alloc, int *ress
 }
 
 
-// TODO FONCTION TEST
-// nouvelle_allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
-void tab_test2(int lignes, int colonnes, int p_id,int **nouvelle_need, int *ress) {
+void calcul_tab2(int lignes, int colonnes, int p_id,int **nouvelle_need, int *ress) {
   for (int i = 0; i < lignes; ++i) {
     for (int j = 0; j < colonnes; ++j) {
       if (i == p_id) {
@@ -332,11 +321,6 @@ void tab_test2(int lignes, int colonnes, int p_id,int **nouvelle_need, int *ress
     }
   }
 }
-
-
-
-
-
 
 /*
  * Fonction qui va vérifier si dans l'etat actuelle il est possible
@@ -379,268 +363,239 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
 }
 
 
-
-// TODO traiter les CLO, END
-void gerer_requete(int socket_fd, int cmd, int nb_args, int process_id){
-
+//int socket_fd, int cmd, int nb_args, int process_id
+void gerer_init(int socket_fd, int nb_args, int process_id){
   int ressource=0;
   bool lecture = true;
 
-  if(cmd==INIT){
-
-    for(int j=0; j<nb_args; ++j){
-      int len = read_socket(socket_fd,&ressource,sizeof(ressource),max_wait_time*1000);
-      if (len > 0) {
-        // Remplir les tableaux avec les donnees initiales
-        remplir_donnees_initiales(process_id, ressource, j);
-      } else {
-        printf("Erreur de lecture...\n");
-        lecture = false;
-        break;
-      }
+  for(int j=0; j<nb_args; ++j){
+    int len = read_socket(socket_fd,&ressource,sizeof(ressource), max_wait_time*1000);
+    if (len > 0) {
+      // Remplir les tableaux avec les donnees initiales
+      remplir_donnees_initiales(process_id, ressource, j);
+    } else {
+      printf("Erreur de lecture...\n");
+      lecture = false;
+      break;
     }
-     /*
-      * int *total_ressources;
-int **max;
-
-int **allocation;
-int **need;
-
-int *available;
-int *total_allocation;
-
-int *requete_en_attend;*/
-
-     //pthread_mutex_lock(&total_allocation_modifie);
-     /*tab_print(total_ressources, "tot_ress");
-     tab_print_2d(max, "max");
-     tab_print_2d(allocation, "alloc");
-     tab_print_2d(need, "need");
-     tab_print(available, "avail");
-     tab_print(total_allocation, "tot_alloc");*/
-     //pthread_mutex_lock(&total_allocation_modifie);
+  }
+  if (lecture) {
+    int ack[2] = {4, 0};
+    send(socket_fd ,ack, sizeof(ack) ,0);
+  }
+}
 
 
+// TODO traiter les CLO, END
+void gerer_requete(int socket_fd, int nb_args, int process_id){
 
-    if (lecture) {
-      int ack[2] = {4, 0};
-      send(socket_fd ,ack, sizeof(ack) ,0);
-    }
+  int ressource=0;
+  bool valide = true;
+  bool wait = false;
 
-  } else if(cmd==REQ) {
+  if (requete_en_attend[process_id] == 0) {
+    requetes_total();
+  }
 
-    bool valide = true;
-    bool wait = false;
-
-    if (requete_en_attend[process_id] == 0) {
-      requetes_total();
-    }
-
-    int *ressources_demandes = malloc(nombre_ressources * sizeof(int));
+  int *ressources_demandes = malloc(nombre_ressources * sizeof(int));
 
 
-    for (int i = 0; i < nb_args; ++i) {
-      int len = read_socket(socket_fd, &ressource, sizeof(ressource), max_wait_time * 1000);
-      if (len > 0) {
+  for (int i = 0; i < nb_args; ++i) {
+    int len = read_socket(socket_fd, &ressource, sizeof(ressource), max_wait_time * 1000);
+    if (len > 0) {
 
-        // Array qui contient les ressources a allouer
-        ressources_demandes[i] = ressource;
+      // Array qui contient les ressources a allouer
+      ressources_demandes[i] = ressource;
 
-        // La ressource demande est plus grande que le max autorise
-        // ou plus petit que (-)max autorise
-        if (ressources_demandes[i] > total_ressources[i] || ressources_demandes[i] < (total_ressources[i] * (-1))) {
-          printf("Les ressources demandes sont plus grandes que ressources totales.\n");
-          int err[3] = {ERR, 1, -1};
-          send(socket_fd, err, sizeof(err), 0);
-          erreur_envoye();
-          valide = false;
-          break;
-        }
-
-        if (available[i] - ressources_demandes[i] < total_ressources[i]) {
-          printf("Les ressources demandes depassent le total disponible pour les clients\n");
-          int err[3] = {ERR, 1, -1};
-          send(socket_fd, err, sizeof(err), 0);
-          erreur_envoye();
-          valide = false;
-          break;
-        }
-
-        if ( available[i] - ressources_demandes[i] < 0 ) {
-          printf("Les ressources demandes ne sont pas disponibles en ce moment...\n");
-          wait = true;
-          printf("p_id %d\n", process_id);
-          printf("available - demande > 0   %d - %d = %d\n", available[i], ressources_demandes[i], available[i] - ressources_demandes[i]);
-          /*tab_print(ressources_demandes, "r_dem");
-          tab_print(available, "avail[p_id]");*/
-          //sleep(1);
-          break;
-        }
-
-        if (allocation[process_id][i] + ressources_demandes[i] > max[process_id][i]) {
-          printf("Les ressources demandes depassent le maximum permit au client\n");
-          printf("p_id %d\n", process_id);
-          printf("allocation + demande > max | %d + %d > %d\n", allocation[process_id][i], ressources_demandes[i], max[process_id][i]);
-          /*tab_print(ressources_demandes, "r_dem");
-          tab_print(allocation[process_id], "alloc[p_id]");
-          tab_print(max[process_id], "max[p_id]");*/
-          //sleep(1);
-          int err[3] = {ERR, 1, -1};
-          send(socket_fd, err, sizeof(err), 0);
-          erreur_envoye();
-          valide = false;
-          break;
-        }
-
-        if (need[process_id][i] - ressources_demandes[i] < 0) {
-          printf("Le client a demande plus de ressources qui est necessaire\n\n");
-          printf("p_id %d\n", process_id);
-          printf("need - demande < 0 | %d - %d = %d\n", need[process_id][i], ressources_demandes[i], need[process_id][i] - ressources_demandes[i]);
-          /*tab_print(ressources_demandes, "r_dem");
-          tab_print(need[process_id], "need[p_id]");*/
-          //sleep(1);
-          int err[3] = {ERR, 1, -1};
-          send(socket_fd, err, sizeof(err), 0);
-          erreur_envoye();
-          valide = false;
-          break;
-        }
-
-      } else {
-        printf("Erreur de lecture...\n");
+      // La ressource demande est plus grande que le max autorise
+      // ou plus petit que (-)max autorise
+      if (ressources_demandes[i] > total_ressources[i] || ressources_demandes[i] < (total_ressources[i] * (-1))) {
+        printf("Les ressources demandes sont plus grandes que ressources totales.\n");
         int err[3] = {ERR, 1, -1};
         send(socket_fd, err, sizeof(err), 0);
         erreur_envoye();
         valide = false;
         break;
       }
+
+      if (available[i] - ressources_demandes[i] < total_ressources[i]) {
+        printf("Les ressources demandes depassent le total disponible pour les clients\n");
+        int err[3] = {ERR, 1, -1};
+        send(socket_fd, err, sizeof(err), 0);
+        erreur_envoye();
+        valide = false;
+        break;
+      }
+
+      if ( available[i] - ressources_demandes[i] < 0 ) {
+        printf("Les ressources demandes ne sont pas disponibles en ce moment...\n");
+        wait = true;
+        printf("p_id %d\n", process_id);
+        printf("available - demande > 0   %d - %d = %d\n", available[i], ressources_demandes[i], available[i] - ressources_demandes[i]);
+        /*tab_print(ressources_demandes, "r_dem");
+        tab_print(available, "avail[p_id]");*/
+        //sleep(1);
+        break;
+      }
+
+      if (allocation[process_id][i] + ressources_demandes[i] > max[process_id][i]) {
+        printf("Les ressources demandes depassent le maximum permit au client\n");
+        printf("p_id %d\n", process_id);
+        printf("allocation + demande > max | %d + %d > %d\n", allocation[process_id][i], ressources_demandes[i], max[process_id][i]);
+        /*tab_print(ressources_demandes, "r_dem");
+        tab_print(allocation[process_id], "alloc[p_id]");
+        tab_print(max[process_id], "max[p_id]");*/
+        //sleep(1);
+        int err[3] = {ERR, 1, -1};
+        send(socket_fd, err, sizeof(err), 0);
+        erreur_envoye();
+        valide = false;
+        break;
+      }
+
+      if (need[process_id][i] - ressources_demandes[i] < 0) {
+        printf("Le client a demande plus de ressources qui est necessaire\n\n");
+        printf("p_id %d\n", process_id);
+        printf("need - demande < 0 | %d - %d = %d\n", need[process_id][i], ressources_demandes[i], need[process_id][i] - ressources_demandes[i]);
+        /*tab_print(ressources_demandes, "r_dem");
+        tab_print(need[process_id], "need[p_id]");*/
+        //sleep(1);
+        int err[3] = {ERR, 1, -1};
+        send(socket_fd, err, sizeof(err), 0);
+        erreur_envoye();
+        valide = false;
+        break;
+      }
+
+    } else {
+      printf("Erreur de lecture...\n");
+      int err[3] = {ERR, 1, -1};
+      send(socket_fd, err, sizeof(err), 0);
+      erreur_envoye();
+      valide = false;
+      break;
     }
+  }
 
-    if (valide) {
+  if (valide) {
 
-      if (wait) {
-        int ct_wait[3] = {WAIT, 1, wait_time};
-        send(socket_fd, ct_wait, sizeof(ct_wait), 0);
-        free(ressources_demandes);
-        requete_en_attend[process_id] = 1;
-      } else {
+    if (wait) {
+      int ct_wait[3] = {WAIT, 1, wait_time};
+      send(socket_fd, ct_wait, sizeof(ct_wait), 0);
+      free(ressources_demandes);
+      requete_en_attend[process_id] = 1;
+    } else {
 
 
-        // ALgorithme du banquier
+      // ALgorithme du banquier
 
-        // Essayer d'allouer les ressources pour process_id pour calculer
-        // un nouvel etat hypothetique
+      // Essayer d'allouer les ressources pour process_id pour calculer
+      // un nouvel etat hypothetique
 
-        pthread_mutex_lock(&bankers_algo);
-        int *nouvelle_available = malloc(nombre_ressources * sizeof(int));
-        int **nouvelle_allocation = malloc(sizeof(int*) * nombre_clients);
-        int **nouvelle_need = malloc(sizeof(int*) * nombre_clients);
-        int *nouvelle_total_allocation = malloc(nombre_ressources * sizeof(int));
+      pthread_mutex_lock(&bankers_algo);
+      int *nouvelle_available = malloc(nombre_ressources * sizeof(int));
+      int **nouvelle_allocation = malloc(sizeof(int*) * nombre_clients);
+      int **nouvelle_need = malloc(sizeof(int*) * nombre_clients);
+      int *nouvelle_total_allocation = malloc(nombre_ressources * sizeof(int));
 
-        // Allocation 2D
-        for (int m = 0; m < nombre_clients ; ++m) {
-          nouvelle_allocation[m] = malloc(nombre_ressources * sizeof(int));
-          nouvelle_need[m] = malloc(nombre_ressources * sizeof(int));
+      // Allocation 2D
+      for (int m = 0; m < nombre_clients ; ++m) {
+        nouvelle_allocation[m] = malloc(nombre_ressources * sizeof(int));
+        nouvelle_need[m] = malloc(nombre_ressources * sizeof(int));
+      }
+
+      for (int k = 0; k < nombre_ressources; ++k) {
+        nouvelle_available[k] = available[k] - ressources_demandes[k];
+      }
+      calcul_tab(nombre_clients, nombre_ressources, process_id, nouvelle_allocation, ressources_demandes);
+      //pthread_mutex_unlock(&allocation_modifie);
+
+
+      for (int i1 = 0; i1 < nombre_ressources; ++i1) {
+        nouvelle_total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
+      }
+      calcul_tab2(nombre_clients, nombre_ressources, process_id, nouvelle_need, ressources_demandes);
+
+      if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
+                      nouvelle_need, nouvelle_allocation) ) {
+
+        // Modifications dans les tableaux principaux
+        for (int i = 0; i < nombre_ressources; ++i) {
+          available[i] = available[i] - ressources_demandes[i];
         }
 
-        for (int k = 0; k < nombre_ressources; ++k) {
-          nouvelle_available[k] = available[k] - ressources_demandes[k];
+        for (int j = 0; j < nombre_ressources; ++j) {
+          allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
         }
-        tab_test(nombre_clients, nombre_ressources, process_id, nouvelle_allocation, ressources_demandes);
-        //pthread_mutex_unlock(&allocation_modifie);
 
+        for (int j = 0; j < nombre_ressources; ++j) {
+          need[process_id][j] = need[process_id][j] - ressources_demandes[j];
+        }
 
         for (int i1 = 0; i1 < nombre_ressources; ++i1) {
-          nouvelle_total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
+          total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
         }
-        tab_test2(nombre_clients, nombre_ressources, process_id, nouvelle_need, ressources_demandes);
 
-        if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
-                        nouvelle_need, nouvelle_allocation) ) {
-
-          // Modifications dans les tableaux principaux
-          for (int i = 0; i < nombre_ressources; ++i) {
-            available[i] = available[i] - ressources_demandes[i];
-          }
-
-          for (int j = 0; j < nombre_ressources; ++j) {
-            allocation[process_id][j] = allocation[process_id][j] + ressources_demandes[j];
-          }
-
-          for (int j = 0; j < nombre_ressources; ++j) {
-            need[process_id][j] = need[process_id][j] - ressources_demandes[j];
-          }
-
-          for (int i1 = 0; i1 < nombre_ressources; ++i1) {
-            total_allocation[i1] = total_allocation[i1] + ressources_demandes[i1];
-          }
-
-          int ack[2] = {ACK, 0};
-          send(socket_fd, ack, sizeof(ack), 0);
-          if (requete_en_attend[process_id] == 1) {
-            requete_en_attend[process_id] = 0;
-            avec_delai();
-          } else {
-            sans_delai();
-          }
-
+        int ack[2] = {ACK, 0};
+        send(socket_fd, ack, sizeof(ack), 0);
+        if (requete_en_attend[process_id] == 1) {
+          requete_en_attend[process_id] = 0;
+          avec_delai();
         } else {
-          int ct_wait[3] = {WAIT, 1, wait_time};
-          //printf("Le client doit attendre %d secondes\n", ct_wait[2]);
-          send(socket_fd, ct_wait, sizeof(ct_wait), 0);
-          pthread_mutex_lock(&en_attendant);
-          requete_en_attend[process_id] = 1;
-          pthread_mutex_unlock(&en_attendant);
-        }
-        pthread_mutex_unlock(&bankers_algo);
-
-        // Libération des ressources
-        for (int n = 0; n < nombre_ressources ; ++n) {
-          free(nouvelle_allocation[n]);
-          nouvelle_allocation[n] = NULL;
-          free(nouvelle_need[n]);
-          nouvelle_need[n] = NULL;
+          sans_delai();
         }
 
-        free(nouvelle_total_allocation);
-        nouvelle_total_allocation = NULL;
-        free(nouvelle_need);
-        nouvelle_need = NULL;
-        free(nouvelle_allocation);
-        nouvelle_allocation = NULL;
-        free(nouvelle_available);
-        nouvelle_available = NULL;
-        free(ressources_demandes);
-        ressources_demandes = NULL;
+      } else {
+        int ct_wait[3] = {WAIT, 1, wait_time};
+        //printf("Le client doit attendre %d secondes\n", ct_wait[2]);
+        send(socket_fd, ct_wait, sizeof(ct_wait), 0);
+        pthread_mutex_lock(&en_attendant);
+        requete_en_attend[process_id] = 1;
+        pthread_mutex_unlock(&en_attendant);
       }
-    } else {
+      pthread_mutex_unlock(&bankers_algo);
+
+      // Libération des ressources
+      for (int n = 0; n < nombre_ressources ; ++n) {
+        free(nouvelle_allocation[n]);
+        nouvelle_allocation[n] = NULL;
+        free(nouvelle_need[n]);
+        nouvelle_need[n] = NULL;
+      }
+
+      free(nouvelle_total_allocation);
+      nouvelle_total_allocation = NULL;
+      free(nouvelle_need);
+      nouvelle_need = NULL;
+      free(nouvelle_allocation);
+      nouvelle_allocation = NULL;
+      free(nouvelle_available);
+      nouvelle_available = NULL;
       free(ressources_demandes);
+      ressources_demandes = NULL;
     }
-
-  } else if (cmd==CLO) {
-    clo_recu();
-    // Le client annonce la fin
-
-    // Le serveur cherche les donne du client qui se trouvent dans les tableaux allocation et need
-    // bloquer chaque tableau et faire la modification pour
-    // tab[process_id][j] = 0; pout tout j = 0, 1, ... nombre_de_ressources
-    // bloquer les tableaux de available et calculer nouvelle_available[i]
-    //
-    int ack[2] = {ACK, 0};
-    send(socket_fd, ack, sizeof(ack), 0);
-    client_fini();
-  } else if (cmd == END) {
-
-    // On va arreter tous les st ou quoi?
-
-
-  } else{
-    printf("Erreur : La commande n'est pas encore supportée.\n");
-    int err[2] = {8, 0};
-    send(socket_fd, &err, sizeof(err), 0);
-    erreur_envoye();
-    //Emvoyer erreur.
+  } else {
+    free(ressources_demandes);
   }
+}
+
+void gerer_clo (int socket_fd, int nb_args, int process_id) {
+  clo_recu();
+  // Le client annonce la fin
+
+  // Le serveur cherche les donne du client qui se trouvent dans les tableaux allocation et need
+  // bloquer chaque tableau et faire la modification pour
+  // tab[process_id][j] = 0; pout tout j = 0, 1, ... nombre_de_ressources
+  // bloquer les tableaux de available et calculer nouvelle_available[i]
+  //
+  int ack[2] = {ACK, 0};
+  send(socket_fd, ack, sizeof(ack), 0);
+  client_fini();
+}
+
+void gerer_end (int socket_fd, int nb_args, int process_id) {
+
+  // TODO le derniere client doit arreter le serveur (egal a BEGIN)
 
 }
 
@@ -697,23 +652,31 @@ st_process_requests (server_thread * st, int socket_fd)
       printf ("Thread %d received invalid command size=%d!\n", st->id, len);
     } else {
       printf("\nThread %d received command=%d, nb_args=%d\n", st->id, header.cmd, header.nb_args);
-      if (header.cmd != END) {
-
-        if (header.nb_args > 0) {
-          int process_id;
-          len = read_socket(socket_fd, &process_id, sizeof(process_id), max_wait_time*1000);
-          if (len > 0) {
-            gerer_requete(socket_fd,header.cmd,header.nb_args, process_id);
-          } else {
-            printf("Erreur de lecture... \n");
-          }
-
-
+      int process_id;
+      len = read_socket(socket_fd, &process_id, sizeof(process_id), max_wait_time*1000);
+      if (len > 0) {
+        if (header.cmd == INIT) {
+          gerer_init(socket_fd, header.nb_args, process_id);
+        } else if (header.cmd == REQ) {
+          gerer_requete(socket_fd, header.nb_args, process_id);
+        } else if (header.cmd == CLO) {
+          gerer_clo(socket_fd, header.nb_args, process_id);
+        } else if (header.cmd == END) {
+          gerer_end(socket_fd, header.nb_args, process_id);
+        } else {
+          printf("La commande n'est pas encore supporte\n");
+          int err[3] = {ERR, 1, -1};
+          send(socket_fd, err, sizeof(err), 0);
+          erreur_envoye();
         }
 
       } else {
-        // finir l'execution du thread serveur
+        printf("Erreur de lecture... \n");
       }
+
+
+
+
 
     }
 
