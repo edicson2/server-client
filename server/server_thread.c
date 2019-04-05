@@ -78,19 +78,15 @@ pthread_mutex_t en_attendant;
 
 
 // Mutex pour l'algorithme du bankier
-pthread_mutex_t total_allocation_modifie;
 pthread_mutex_t max_modifie;
 pthread_mutex_t allocation_modifie;
 pthread_mutex_t need_modifie;
-pthread_mutex_t available_modifie;
 pthread_mutex_t bankers_algo;
-pthread_mutex_t memoire;
 
 
-int waiting;
 /********************************************************************************************************************/
 
-// TODO ERASE FONCTION
+// TODO ERASE START
 void tab_print_2d (int **tab, char *tab_name) {
   for (int i = 0; i < nombre_clients; ++i) {
     for (int j = 0; j < nombre_ressources; ++j) {
@@ -107,6 +103,8 @@ void tab_print (int *tab, char *tab_name) {
   }
   printf("\n\n");
 }
+
+// TODO ERASE END
 
 void sans_delai() {
   pthread_mutex_lock(&accepte_sans_delai);
@@ -362,7 +360,6 @@ bool safe_state (int nb_clients, int nb_ressources, int *nouvelle_available,
 
 }
 
-
 //int socket_fd, int cmd, int nb_args, int process_id
 void gerer_init(int socket_fd, int nb_args, int process_id){
   int ressource=0;
@@ -385,8 +382,6 @@ void gerer_init(int socket_fd, int nb_args, int process_id){
   }
 }
 
-
-// TODO traiter les CLO, END
 void gerer_requete(int socket_fd, int nb_args, int process_id){
 
   int ressource=0;
@@ -430,22 +425,11 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       if ( available[i] - ressources_demandes[i] < 0 ) {
         printf("Les ressources demandes ne sont pas disponibles en ce moment...\n");
         wait = true;
-        printf("p_id %d\n", process_id);
-        printf("available - demande > 0   %d - %d = %d\n", available[i], ressources_demandes[i], available[i] - ressources_demandes[i]);
-        /*tab_print(ressources_demandes, "r_dem");
-        tab_print(available, "avail[p_id]");*/
-        //sleep(1);
         break;
       }
 
       if (allocation[process_id][i] + ressources_demandes[i] > max[process_id][i]) {
         printf("Les ressources demandes depassent le maximum permit au client\n");
-        printf("p_id %d\n", process_id);
-        printf("allocation + demande > max | %d + %d > %d\n", allocation[process_id][i], ressources_demandes[i], max[process_id][i]);
-        /*tab_print(ressources_demandes, "r_dem");
-        tab_print(allocation[process_id], "alloc[p_id]");
-        tab_print(max[process_id], "max[p_id]");*/
-        //sleep(1);
         int err[3] = {ERR, 1, -1};
         send(socket_fd, err, sizeof(err), 0);
         erreur_envoye();
@@ -455,11 +439,6 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
 
       if (need[process_id][i] - ressources_demandes[i] < 0) {
         printf("Le client a demande plus de ressources qui est necessaire\n\n");
-        printf("p_id %d\n", process_id);
-        printf("need - demande < 0 | %d - %d = %d\n", need[process_id][i], ressources_demandes[i], need[process_id][i] - ressources_demandes[i]);
-        /*tab_print(ressources_demandes, "r_dem");
-        tab_print(need[process_id], "need[p_id]");*/
-        //sleep(1);
         int err[3] = {ERR, 1, -1};
         send(socket_fd, err, sizeof(err), 0);
         erreur_envoye();
