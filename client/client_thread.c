@@ -288,7 +288,7 @@ send_request (int client_id, int request_id, int socket_fd) {
     } else { // header.cmd == ERR
       int taille = header.nb_args;
       printf("On a obtenu un erreur \n\n");
-      char message[taille];
+      /*char message[taille];
       char message_recu[taille + 1];
       len=read_socket(socket_fd, &message, sizeof(message), max_wait_time * 1000);
       for (int i = 0; i < strlen(message); ++i) {
@@ -296,7 +296,7 @@ send_request (int client_id, int request_id, int socket_fd) {
       }
       message_recu[taille] = '\0';
 
-      printf("Message : %s", message_recu);
+      printf("Message : %s", message_recu);*/
     }
   } else{
     printf("Pas de reponse!\n");
