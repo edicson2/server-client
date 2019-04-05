@@ -138,16 +138,6 @@ void envoyer_begin(int socket,int rng){
 
 }
 
-// pour faire la configuration du serveur
-void envoie_config(int nb_cl){
-  int socket_fd=connect_ct();
-  envoyer_begin(socket_fd,nb_cl);
-
-  int socket_fd2 = connect_ct();
-
-  envoyer_ressource(socket_fd2);
-
-}
 
 void client_peut_connecter(int socket,int id){
   printf("Client %d veut connecter\n",id);
@@ -196,10 +186,6 @@ void envoyer_INI(int socket, int id){
 
 }
 
-/*
- * Fonction auxiliaire pour générer des nombres aléatoires
- * negatifs et positifs
- * */
 int rand_lim(int limit) {
 /* return a random number between 0 and limit inclusive.
  */
@@ -214,7 +200,13 @@ int rand_lim(int limit) {
   return retval;
 }
 
+void envoi_close () {
 
+}
+
+void envoi_end () {
+
+}
 /*********************************************************************************************************/
 // Vous devez modifier cette fonction pour faire l'envoie des requêtes
 // Les ressources demandées par la requête doivent être choisies aléatoirement
@@ -225,8 +217,14 @@ int rand_lim(int limit) {
 void
 send_request (int client_id, int request_id, int socket_fd) {
 
+  if (request_id == num_request_per_client - 2) {
+    // envoi de close
+  }
+  if (request_id == num_request_per_client - 1) {
+    // envoi de END
+  }
   fprintf (stdout, "Client %d is sending its %d request\n", client_id,
-   request_id);
+           request_id);
   int max[num_resources];
   int ini_res[num_resources+3];
   int nb_aleatoire = 0;
@@ -287,9 +285,18 @@ send_request (int client_id, int request_id, int socket_fd) {
         }
         close(socket_fd);
       }*/
-    } else {
-      // header.cmd == ERR
-      printf("On a obtenu un erreur");
+    } else { // header.cmd == ERR
+      int taille = header.nb_args;
+      printf("On a obtenu un erreur \n\n");
+      char message[taille];
+      char message_recu[taille + 1];
+      len=read_socket(socket_fd, &message, sizeof(message), max_wait_time * 1000);
+      for (int i = 0; i < strlen(message); ++i) {
+        message_recu[i] = message[i];
+      }
+      message_recu[taille] = '\0';
+
+      printf("Message : %s", message_recu);
     }
   } else{
     printf("Pas de reponse!\n");
@@ -297,27 +304,20 @@ send_request (int client_id, int request_id, int socket_fd) {
 }
 
 
-void send_close(int client_id, int socket_fd) {
-  int close[3] = {CLO, 1, client_id};
-  printf("Client %d envoi close\n", client_id);
-  socket_fd=connect_ct();
-  send(socket_fd, close, sizeof(close), 0);
-  struct cmd_header_t header = { .nb_args = 0};
-  int len=read_socket(socket_fd, &header, sizeof(header), max_wait_time * 1000);
-  if (len > 0 && header.cmd == ACK) {
-    printf("Le serveur a libere les ressources du client\n");
-  } else {
-    printf("Pas de reponse du serveur.\n");
-  }
-}
+// pour faire la configuration du serveur
+void envoie_config(int nb_cl){
+  int socket_fd=connect_ct();
+  envoyer_begin(socket_fd,nb_cl);
 
+  int socket_fd2 = connect_ct();
+  envoyer_ressource(socket_fd2);
+}
 
 void *
 ct_code (void *param)
 {
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
-
   socket_fd=connect_ct();
   if(etat==0){
     exit(0);}
@@ -338,15 +338,13 @@ ct_code (void *param)
     // TP2 TODO
     // Vous devez ici coder, conjointement avec le corps de send request,
     // le protocole d'envoi de requête.
-    //printf("Sending REQ\n");
-    //envoyer_INI(socket_fd, ct->id, REQ);
 
-    //send(socket_fd, tab, sizeof(tab), 0);
-    //envoyer_INI(socket_fd,ct->id,  REQ);
     send_request (ct->id, request_id, socket_fd);
+
+
     // TODO la derniere requerte doit faire la  liberation de tous les ressources du client
     // TODO On devrait avoir un tableau 2D avec le nombre de ressources alloues pour chaque client
-        // et la modifie a chaque fois qu'on fais un send_request
+    // et la modifie a chaque fois qu'on fais un send_request
 
 
 // TP2 TODO:END
