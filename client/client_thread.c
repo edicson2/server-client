@@ -41,10 +41,12 @@ int **max_ressource_ct;
 int **allocation_actuelle;
 int client_connectes = 0;
 bool max_deja_cree = false;
+bool allocation_initialise = false;
 
 pthread_mutex_t cree_tab;
 pthread_mutex_t compteur;
 pthread_mutex_t remplir_tab;
+pthread_mutex_t remplir_allocation;
 
 
 /*********************************************************************************************************/
@@ -99,6 +101,17 @@ void tab_print_2d (int **tab, char *tab_name) {
  * */
 void envoyer_ressource(int socket){
 
+  allocation_actuelle = malloc(sizeof(int*) * nb_clients);
+  for (int i = 0; i < nb_clients; ++i) {
+    allocation_actuelle = malloc(sizeof(int) * nb_ressources);
+  }
+
+  for (int j = 0; j < nb_clients; ++j) {
+    for (int i = 0; i < nb_ressources; ++i) {
+      printf("TEST!\n");
+      //allocation_actuelle[j][i] = 0;
+    }
+  }
   //on va construire un tableau pour envoyer au serveur.
   int provision_res[num_resources+2];
 
@@ -194,6 +207,17 @@ void envoyer_INI(int socket, int id){
     else
       ini_res[i]=max[i-3];
   }
+  pthread_mutex_lock(&remplir_allocation);
+  if (allocation_initialise == false) {
+    //printf(max_ressource_ct[0][0]);
+    allocation_initialise = true;
+    for (int i = 0; i < nb_clients; ++i) {
+      for (int j = 0; j < nb_ressources; ++j) {
+
+      }
+    }
+  }
+  pthread_mutex_unlock(&remplir_allocation);
 
   pthread_mutex_lock(&remplir_tab);
   for (int j = 0; j < nb_ressources; ++j) {
@@ -251,7 +275,7 @@ send_request (int client_id, int request_id, int socket_fd) {
 
     for(int i=0; i<num_resources; i++){
       clo_res[i]=max_ressource_ct[client_id][i];
-      printf("max = %d  -  clo_res %d\n", max_ressource_ct[client_id][i], clo_res[i]);
+      //printf("max = %d  -  clo_res %d\n", max_ressource_ct[client_id][i], clo_res[i]);
     }
 
 
@@ -295,7 +319,7 @@ send_request (int client_id, int request_id, int socket_fd) {
       pthread_mutex_lock(&remplir_tab);
 
 
-
+      // Affichage des tableaux
       for (int j = 0; j < nb_clients; ++j) {
         for (int i = 0; i < nb_ressources; ++i) {
           printf("  max_res [%d][%d] = %d  -", j, i, max_ressource_ct[j][i]);
@@ -385,10 +409,10 @@ ct_code (void *param)
   if (max_deja_cree == false) {
     max_deja_cree = true;
     max_ressource_ct = malloc(sizeof(int*) * nb_clients);
-    allocation_actuelle = malloc(sizeof(int*) * nb_clients);
+    //allocation_actuelle = malloc(sizeof(int*) * nb_clients);
     for (int i = 0; i < nb_clients; ++i) {
       max_ressource_ct[i] = malloc(sizeof(int) * nb_ressources);
-      allocation_actuelle = malloc(sizeof(int) * nb_ressources);
+      //allocation_actuelle = malloc(sizeof(int) * nb_ressources);
     }
   }
   pthread_mutex_unlock(&cree_tab);
@@ -409,11 +433,6 @@ ct_code (void *param)
     // le protocole d'envoi de requête.
 
     send_request (ct->id, request_id, socket_fd);
-
-
-    // TODO la derniere requerte doit faire la  liberation de tous les ressources du client
-    // TODO On devrait avoir un tableau 2D avec le nombre de ressources alloues pour chaque client
-    // et la modifie a chaque fois qu'on fais un send_request
 
 
 // TP2 TODO:END
