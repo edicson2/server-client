@@ -266,24 +266,55 @@ send_request (int client_id, int request_id, int socket_fd) {
   }
 
   if (request_id == num_request_per_client - 1) {
-    if (client_connectes > 1) {
-      int close[3] = {CLO, 1, client_id};
-      send(socket_fd, close, sizeof(close),0);
+    if (client_connectes == 1) {
+      printf("THIS IS THE END\n\n");
+      int clo[3] = {CLO, 1, client_id};
+      send(socket_fd, clo, sizeof(clo),0);
       struct cmd_header_t header = { .nb_args = 0};
       int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
       if (len > 0) {
         if (header.cmd == ACK) {
-          termime();
+          printf("Le client est fini.\n");
+          close(socket_fd);
+          socket_fd = connect_ct();
+          int fin[2] = {END, 0};
+          send(socket_fd, fin, sizeof(fin),0);
+          len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
+          if (len > 0) {
+            if (header.cmd == ACK) {
+              printf("Le dernier client a termine le serveur avec succes\n");
+              termime();
+            } else {
+              printf("Erreur. Le dernier client n'a pas termine le serveur");
+            }
+          } else {
+            printf("Pas de reponse recu sur la terminasion du serveur\n");
+          }
+        } else {
+          printf("La derniere reponse du serveur n'est pas valide\n");
+        }
+      } else {
+        printf("Pas de reponse recu a la derniere commande CLO\n");
+      }
+    } else if (client_connectes > 1) {
+      printf("CCCCLLLOOOO\n\n");
+      int clo[3] = {CLO, 1, client_id};
+      send(socket_fd, clo, sizeof(clo),0);
+      struct cmd_header_t header = { .nb_args = 0};
+      int len = read_socket(socket_fd, &header, sizeof(header), max_wait_time*1000);
+      if (len > 0) {
+        if (header.cmd == ACK) {
           printf("Le client est fini.\n");
         } else {
-          printf("Erreur dans la fin du client.\n");
+          printf("La reponse du serveur n'est pas valide\n");
         }
+      } else {
+        printf("Pas de reponse recu a la commande CLO\n");
       }
-    } if (client_connectes == 1) {
-      // END
     } else {
       // ERROR Pas de Clients connectes
     }
+    close(socket_fd);
   } else { // REQ
     for(int i=0; i<num_resources+3; i++){
       if(i==0)
@@ -439,6 +470,7 @@ ct_code (void *param)
   close(socket_fd);
   pthread_mutex_lock(&compteur);
   client_connectes--;
+  printf("CLients connectes %d\n", client_connectes);
   pthread_mutex_unlock(&compteur);
 
   //send_close(ct->id, socket_fd);

@@ -426,6 +426,9 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       if ( available[i] - ressources_demandes[i] < 0 ) {
         printf("Les ressources demandes ne sont pas disponibles en ce moment...\n");
         printf("Le client doit attendre\n");
+        pthread_mutex_lock(&en_attendant);
+        requete_en_attend[process_id] = 1;
+        pthread_mutex_unlock(&en_attendant);
         wait = true;
         break;
       }
@@ -464,7 +467,6 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       int ct_wait[3] = {WAIT, 1, wait_time};
       send(socket_fd, ct_wait, sizeof(ct_wait), 0);
       free(ressources_demandes);
-      requete_en_attend[process_id] = 1;
     } else {
 
 
@@ -521,7 +523,9 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
         int ack[2] = {ACK, 0};
         send(socket_fd, ack, sizeof(ack), 0);
         if (requete_en_attend[process_id] == 1) {
+          pthread_mutex_lock(&en_attendant);
           requete_en_attend[process_id] = 0;
+          pthread_mutex_unlock(&en_attendant);
           avec_delai();
         } else {
           sans_delai();
@@ -581,6 +585,13 @@ void gerer_clo (int socket_fd, int nb_args, int process_id) {
 }
 
 void gerer_end (int socket_fd, int nb_args, int process_id) {
+  // Verifier si les tableaux
+  // total_allocation [j] == 0,
+  // need[i][j] == 0,
+  // allocated[i][j] == 0.
+  // Si oui, envoyer ACK, sinon, envoyer une erreur
+
+
 
   // TODO le derniere client doit arreter le serveur (egal a BEGIN)
 
@@ -648,8 +659,6 @@ st_process_requests (server_thread * st, int socket_fd)
           gerer_requete(socket_fd, header.nb_args, process_id);
         } else if (header.cmd == CLO) {
           gerer_clo(socket_fd, header.nb_args, process_id);
-        } else if (header.cmd == END) {
-          gerer_end(socket_fd, header.nb_args, process_id);
         } else {
           printf("La commande n'est pas encore supporte\n");
           int err[3] = {ERR, 1, -1};
@@ -657,6 +666,8 @@ st_process_requests (server_thread * st, int socket_fd)
           erreur_envoye();
         }
 
+      } else if (header.cmd==END) {
+        printf("It's over...\n");
       } else {
         printf("Erreur de lecture... \n");
       }
