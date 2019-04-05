@@ -388,9 +388,12 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
   int ressource=0;
   bool valide = true;
   bool wait = false;
+  bool repete = false;
 
   if (requete_en_attend[process_id] == 0) {
     requetes_total();
+  } else {
+    repete = true;
   }
 
   int *ressources_demandes = malloc(nombre_ressources * sizeof(int));
@@ -527,6 +530,10 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
           requete_en_attend[process_id] = 0;
           pthread_mutex_unlock(&en_attendant);
           avec_delai();
+          requetes_total();
+        } else if (repete) {
+          requetes_total();
+          sans_delai();
         } else {
           sans_delai();
         }

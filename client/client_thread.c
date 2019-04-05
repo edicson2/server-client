@@ -36,8 +36,6 @@ unsigned int request_sent = 0;
 int etat=0;
 int max_wait_time = 30;
 int client_connectes = 0;
-pthread_mutex_t test;
-
 
 pthread_mutex_t acceptee;
 pthread_mutex_t avec_delai_ct;
@@ -267,7 +265,6 @@ send_request (int client_id, int request_id, int socket_fd) {
 
   if (request_id == num_request_per_client - 1) {
     if (client_connectes == 1) {
-      printf("THIS IS THE END\n\n");
       int clo[3] = {CLO, 1, client_id};
       send(socket_fd, clo, sizeof(clo),0);
       struct cmd_header_t header = { .nb_args = 0};
@@ -288,7 +285,7 @@ send_request (int client_id, int request_id, int socket_fd) {
               printf("Erreur. Le dernier client n'a pas termine le serveur");
             }
           } else {
-            printf("Pas de reponse recu sur la terminasion du serveur\n");
+            printf("Pas de reponse recu pour la terminasion du serveur\n");
           }
         } else {
           printf("La derniere reponse du serveur n'est pas valide\n");
@@ -297,7 +294,6 @@ send_request (int client_id, int request_id, int socket_fd) {
         printf("Pas de reponse recu a la derniere commande CLO\n");
       }
     } else if (client_connectes > 1) {
-      printf("CCCCLLLOOOO\n\n");
       int clo[3] = {CLO, 1, client_id};
       send(socket_fd, clo, sizeof(clo),0);
       struct cmd_header_t header = { .nb_args = 0};
@@ -312,7 +308,7 @@ send_request (int client_id, int request_id, int socket_fd) {
         printf("Pas de reponse recu a la commande CLO\n");
       }
     } else {
-      // ERROR Pas de Clients connectes
+      printf("ERROR. Aucun Client est connecte!\n");
     }
     close(socket_fd);
   } else { // REQ
@@ -381,7 +377,7 @@ send_request (int client_id, int request_id, int socket_fd) {
           close(socket_fd);
         }*/
       } else { // header.cmd == ERR
-        printf("On a obtenu un erreur \n\n");
+        printf("On a obtenu un erreur.\n");
         rejete();
         /*int taille = header.nb_args;
         char message[taille];
@@ -470,10 +466,7 @@ ct_code (void *param)
   close(socket_fd);
   pthread_mutex_lock(&compteur);
   client_connectes--;
-  printf("CLients connectes %d\n", client_connectes);
   pthread_mutex_unlock(&compteur);
-
-  //send_close(ct->id, socket_fd);
 
   pthread_exit (NULL);
 }
