@@ -35,21 +35,51 @@ unsigned int count_dispatched = 0;
 unsigned int request_sent = 0;
 int etat=0;
 int max_wait_time = 30;
-int nb_clients = 5;
-int nb_ressources = 5;
-int **max_ressource_ct;
-int **allocation_actuelle;
-int client_connectes = 0;
-bool max_deja_cree = false;
-bool allocation_initialise = false;
+pthread_mutex_t test;
 
-pthread_mutex_t cree_tab;
-pthread_mutex_t compteur;
-pthread_mutex_t remplir_tab;
-pthread_mutex_t remplir_allocation;
+
+pthread_mutex_t acceptee;
+pthread_mutex_t avec_delai_ct;
+pthread_mutex_t refusee;
+pthread_mutex_t recoit_end;
+pthread_mutex_t requete_total;
+
 
 
 /*********************************************************************************************************/
+
+
+void rapide() {
+  pthread_mutex_lock(&acceptee);
+  count_accepted++;
+  pthread_mutex_unlock(&acceptee);
+}
+
+void waited() {
+  pthread_mutex_lock(&avec_delai_ct);
+  count_on_wait++;
+  pthread_mutex_unlock(&avec_delai_ct);
+}
+
+void rejete () {
+  pthread_mutex_lock(&refusee);
+  count_invalid++;
+  pthread_mutex_unlock(&refusee);
+}
+
+void termime () {
+  pthread_mutex_lock(&recoit_end);
+  count_dispatched++;
+  pthread_mutex_unlock(&recoit_end);
+}
+
+void envoie () {
+  pthread_mutex_lock(&requete_total);
+  request_sent++;
+  pthread_mutex_unlock(&requete_total);
+}
+
+
 int connect_ct()
 {
   //struct sockaddr_in address;
@@ -81,37 +111,12 @@ int connect_ct()
 }
 
 
-
-
-
-void tab_print_2d (int **tab, char *tab_name) {
-  for (int i = 0; i < nb_clients; ++i) {
-    for (int j = 0; j < nb_ressources; ++j) {
-      printf("%s [%d][%d] = %d   -   ", tab_name, i, j, tab[i][j]);
-    }
-    printf("\n");
-  }
-  printf("\n\n");
-}
-
-
 /*
  * Fonction qui va envoyer les ressources maximales au serveur
  * ( 10 4 23 1 2 )
  * */
 void envoyer_ressource(int socket){
 
-  allocation_actuelle = malloc(sizeof(int*) * nb_clients);
-  for (int i = 0; i < nb_clients; ++i) {
-    allocation_actuelle = malloc(sizeof(int) * nb_ressources);
-  }
-
-  for (int j = 0; j < nb_clients; ++j) {
-    for (int i = 0; i < nb_ressources; ++i) {
-      printf("TEST!\n");
-      //allocation_actuelle[j][i] = 0;
-    }
-  }
   //on va construire un tableau pour envoyer au serveur.
   int provision_res[num_resources+2];
 
@@ -145,7 +150,7 @@ void envoyer_ressource(int socket){
 }
 
 void envoyer_begin(int socket,int rng){
-  int id_ct[3];//{0,1,6};
+  int id_ct[3];
 
   id_ct[0]=BEGIN;
   id_ct[1]=1;
@@ -167,7 +172,7 @@ void envoyer_begin(int socket,int rng){
       exit(1);
     }
   } else{
-    printf("Échec dans le debut du serveur... \n\n");
+    printf("Échec dans la configuration du serveur... \n\n");
     exit(1);
   }
   close(socket);
@@ -207,31 +212,13 @@ void envoyer_INI(int socket, int id){
     else
       ini_res[i]=max[i-3];
   }
-  pthread_mutex_lock(&remplir_allocation);
-  if (allocation_initialise == false) {
-    //printf(max_ressource_ct[0][0]);
-    allocation_initialise = true;
-    for (int i = 0; i < nb_clients; ++i) {
-      for (int j = 0; j < nb_ressources; ++j) {
-
-      }
-    }
-  }
-  pthread_mutex_unlock(&remplir_allocation);
-
-  pthread_mutex_lock(&remplir_tab);
-  for (int j = 0; j < nb_ressources; ++j) {
-    max_ressource_ct[id][j] = ini_res[j+3];
-  }
-  pthread_mutex_unlock(&remplir_tab);
-
   send(socket,ini_res,sizeof(ini_res),0);
   struct cmd_header_t header = { .nb_args = 0};
   int len=read_socket(socket, &header, sizeof(header), max_wait_time * 1000);
 
   if(len>0) {
     if (header.cmd == ACK) {
-      printf("Init fait\n");
+      printf("Initialisation du client %d\n", id);
     }
   } else{
     printf("Pas de reponse!\n");
@@ -254,7 +241,6 @@ int rand_lim(int limit) {
   return retval;
 }
 
-
 /*********************************************************************************************************/
 // Vous devez modifier cette fonction pour faire l'envoie des requêtes
 // Les ressources demandées par la requête doivent être choisies aléatoirement
@@ -264,34 +250,18 @@ int rand_lim(int limit) {
 // qu'il a jusqu'alors accumulées.
 void
 send_request (int client_id, int request_id, int socket_fd) {
-  int commande = REQ;
-  int max[num_resources];
-  int ini_res[num_resources+3];
-  int clo_res[num_resources];
-  int nb_aleatoire = 0;
 
   if (request_id == num_request_per_client - 2) {
-    commande = CLO;
-
-    for(int i=0; i<num_resources; i++){
-      clo_res[i]=max_ressource_ct[client_id][i];
-      //printf("max = %d  -  clo_res %d\n", max_ressource_ct[client_id][i], clo_res[i]);
-    }
-
-
-
-    return;
+    // envoi de close
   }
-
   if (request_id == num_request_per_client - 1) {
-    commande = END;
-
-
-
-
-    return;
+    // envoi de END
   }
-  fprintf (stdout, "Client %d is sending its %d request\n", client_id, request_id);
+  fprintf (stdout, "Client %d is sending its %d request\n", client_id,
+           request_id);
+  int max[num_resources];
+  int ini_res[num_resources+3];
+  int nb_aleatoire = 0;
   for(int i = 0; i <num_resources; i++)
   {
     //allocations[i] = 0;
@@ -301,7 +271,7 @@ send_request (int client_id, int request_id, int socket_fd) {
 
   for(int i=0; i<num_resources+3; i++){
     if(i==0)
-      ini_res[i]=commande;
+      ini_res[i]=REQ;
     else if(i==1)
       ini_res[i]=num_resources;
     else if(i==2)
@@ -316,29 +286,9 @@ send_request (int client_id, int request_id, int socket_fd) {
 
   if(len>0) {
     if (header.cmd == ACK) {
-      pthread_mutex_lock(&remplir_tab);
+      printf("Reponse du serveur recu.\n");
+      rapide();
 
-
-      // Affichage des tableaux
-      for (int j = 0; j < nb_clients; ++j) {
-        for (int i = 0; i < nb_ressources; ++i) {
-          printf("  max_res [%d][%d] = %d  -", j, i, max_ressource_ct[j][i]);
-        }
-        printf("\n");
-      }
-      for (int k = 0; k < nb_ressources ; ++k) {
-        printf("  ini_res [%d] = %d  -", k+3, ini_res[k+3]);
-      }
-      sleep(1);
-
-
-      for (int i = 0; i < nb_ressources ; ++i) {
-        if (max_ressource_ct[client_id][i] == 0) {
-          continue;
-        }
-        max_ressource_ct[client_id][i] = max_ressource_ct[client_id][i] + ini_res[i+3];
-      }
-      pthread_mutex_unlock(&remplir_tab);
     } else if (header.cmd == WAIT) {
 
       int temps = 0;
@@ -358,7 +308,7 @@ send_request (int client_id, int request_id, int socket_fd) {
       }
       close(socket_fd);
 
-      /*while (header.cmd != ACK) {
+      while (header.cmd != ACK) {
         socket_fd = connect_ct();
         printf("WAIT ---> Client %d is sending %d requete...\n", client_id, request_id);
         send(socket_fd,ini_res,sizeof(ini_res),0);
@@ -368,12 +318,25 @@ send_request (int client_id, int request_id, int socket_fd) {
           continue;
         }
         close(socket_fd);
-      }*/
+      }
+      printf("Reponse tardif du serveur recu.\n");
+      waited();
     } else { // header.cmd == ERR
-      printf("On a recu un erreur \n\n");
+      printf("On a obtenu un erreur \n\n");
+      rejete();
+      /*int taille = header.nb_args;
+      char message[taille];
+      char message_recu[taille + 1];
+      len=read_socket(socket_fd, &message, sizeof(message), max_wait_time * 1000);
+      for (int i = 0; i < strlen(message); ++i) {
+        message_recu[i] = message[i];
+      }
+      message_recu[taille] = '\0';
+
+      printf("Message : %s", message_recu);*/
     }
   } else{
-    printf("Pas de reponse a la requete envoye!\n");
+    printf("Pas de reponse!\n");
   }
 }
 
@@ -390,40 +353,21 @@ void envoie_config(int nb_cl){
 void *
 ct_code (void *param)
 {
-  pthread_mutex_lock(&compteur);
-  client_connectes++;
-  pthread_mutex_unlock(&compteur);
-
-  //envoie_config(5);
-
   int socket_fd = -1;
   client_thread *ct = (client_thread *) param;
   socket_fd=connect_ct();
-
   if(etat==0){
     exit(0);}
   client_peut_connecter(socket_fd,ct->id);
-
-
-  pthread_mutex_lock(&cree_tab);
-  if (max_deja_cree == false) {
-    max_deja_cree = true;
-    max_ressource_ct = malloc(sizeof(int*) * nb_clients);
-    //allocation_actuelle = malloc(sizeof(int*) * nb_clients);
-    for (int i = 0; i < nb_clients; ++i) {
-      max_ressource_ct[i] = malloc(sizeof(int) * nb_ressources);
-      //allocation_actuelle = malloc(sizeof(int) * nb_ressources);
-    }
-  }
-  pthread_mutex_unlock(&cree_tab);
-
-
   envoyer_INI(socket_fd, ct->id);
 
   // TP2 TODO
   // Vous devez ici faire l'initialisation des petits clients (`INI`).
   // TP2 TODO:END
+  // printf("***********************Usage maximum**********************\n");
 
+
+  //int tab[3] = {REQ, 1, rand()};
 
   for (unsigned int request_id = 0; request_id < num_request_per_client;
        request_id++) {
@@ -433,6 +377,12 @@ ct_code (void *param)
     // le protocole d'envoi de requête.
 
     send_request (ct->id, request_id, socket_fd);
+    envoie();
+
+
+    // TODO la derniere requerte doit faire la  liberation de tous les ressources du client
+    // TODO On devrait avoir un tableau 2D avec le nombre de ressources alloues pour chaque client
+    // et la modifie a chaque fois qu'on fais un send_request
 
 
 // TP2 TODO:END
@@ -448,28 +398,6 @@ ct_code (void *param)
   }
 
   close(socket_fd);
-
-  pthread_mutex_lock(&compteur);
-  client_connectes--;
-  pthread_mutex_unlock(&compteur);
-
-
-  pthread_mutex_lock(&cree_tab);
-  if (client_connectes == 0) {
-    for (int i = 0; i < nb_clients; ++i) {
-      free(max_ressource_ct[i]);
-      free(allocation_actuelle[i]);
-    }
-    free(max_ressource_ct);
-    free(allocation_actuelle);
-  }
-  pthread_mutex_unlock(&cree_tab);
-
-
-  // TODO Mettre a l'interieur de send_request
-  if (client_connectes == 1) { // Derniere client
-    //send_end();
-  }
 
   //send_close(ct->id, socket_fd);
 
