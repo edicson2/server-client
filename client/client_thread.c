@@ -37,17 +37,23 @@ int etat=0;
 int max_wait_time = 30;
 int client_connectes = 0;
 
-pthread_mutex_t acceptee;
-pthread_mutex_t avec_delai_ct;
-pthread_mutex_t refusee;
-pthread_mutex_t recoit_end;
-pthread_mutex_t requete_total;
-pthread_mutex_t compteur;
-
-
+pthread_mutex_t acceptee = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t avec_delai_ct = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t refusee = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t recoit_end = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t requete_total = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t compteur = PTHREAD_MUTEX_INITIALIZER;
 
 /*********************************************************************************************************/
 
+void destroy_mutex () {
+  pthread_mutex_destroy(&acceptee);
+  pthread_mutex_destroy(&avec_delai_ct);
+  pthread_mutex_destroy(&refusee);
+  pthread_mutex_destroy(&recoit_end);
+  pthread_mutex_destroy(&requete_total);
+  pthread_mutex_destroy(&compteur);
+}
 
 void rapide() {
   pthread_mutex_lock(&acceptee);
@@ -78,7 +84,6 @@ void envoie () {
   request_sent++;
   pthread_mutex_unlock(&requete_total);
 }
-
 
 int connect_ct()
 {
@@ -341,7 +346,7 @@ send_request (int client_id, int request_id, int socket_fd) {
 
           if (len > 0) {
             printf("process %d va dormir pendant %d secondes\n", client_id, temps);
-            sleep(temps);
+            ct_wait_server();
           } else {
             printf("Le temps d'attend n'a pas ete specifie.\n");
             printf("Dormir pendant 2 secondes");

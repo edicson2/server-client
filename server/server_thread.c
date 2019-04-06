@@ -68,20 +68,20 @@ int *requete_en_attend;
 
 
 // Mutex pour la modificacion des nombre de requetes
-pthread_mutex_t accepte_sans_delai;
-pthread_mutex_t accepte_avec_delai;
-pthread_mutex_t erreur_apres_requete;
-pthread_mutex_t client_finis_correctement;
-pthread_mutex_t requetes_proceses;
-pthread_mutex_t client_ferme;
-pthread_mutex_t en_attendant;
+pthread_mutex_t accepte_sans_delai = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t accepte_avec_delai = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t erreur_apres_requete = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t client_finis_correctement = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t requetes_proceses = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t client_ferme = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t en_attendant = PTHREAD_MUTEX_INITIALIZER;
 
 
 // Mutex pour l'algorithme du bankier
-pthread_mutex_t max_modifie;
-pthread_mutex_t allocation_modifie;
-pthread_mutex_t need_modifie;
-pthread_mutex_t bankers_algo;
+pthread_mutex_t max_modifie = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t allocation_modifie = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t need_modifie = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t bankers_algo = PTHREAD_MUTEX_INITIALIZER;
 
 
 /********************************************************************************************************************/
@@ -478,6 +478,7 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       // Essayer d'allouer les ressources pour process_id pour calculer
       // un nouvel etat hypothetique
 
+      pthread_mutex_lock(&bankers_algo);
 
       int *nouvelle_available = malloc(nombre_ressources * sizeof(int));
       int **nouvelle_allocation = malloc(sizeof(int*) * nombre_clients);
@@ -502,7 +503,7 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
       }
       calcul_tab2(nombre_clients, nombre_ressources, process_id, nouvelle_need, ressources_demandes);
 
-      pthread_mutex_lock(&bankers_algo);
+
       if (safe_state (nombre_clients, nombre_ressources, nouvelle_available,
                       nouvelle_need, nouvelle_allocation) ) {
 
@@ -575,29 +576,48 @@ void gerer_requete(int socket_fd, int nb_args, int process_id){
 void gerer_clo (int socket_fd, int nb_args, int process_id) {
   clo_recu(); // Le client annonce la fin
 
+  // Liberer les ressources du client
   pthread_mutex_lock(&bankers_algo);
   for (int i = 0; i < nombre_ressources; ++i) {
-
+    total_allocation[i] -= allocation[process_id][i];
+    available[i] =+ allocation[process_id][i];
+    need[process_id][i] = 0;
+    allocation[process_id][i] = 0;
   }
   pthread_mutex_unlock(&bankers_algo);
-
-  // Le serveur cherche les donne du client qui se trouvent dans les tableaux allocation et need
-  // bloquer chaque tableau et faire la modification pour
-  // tab[process_id][j] = 0; pout tout j = 0, 1, ... nombre_de_ressources
-  // bloquer les tableaux de available et calculer nouvelle_available[i]
-  //
   int ack[2] = {ACK, 0};
   send(socket_fd, ack, sizeof(ack), 0);
   client_fini();
 }
 
-void gerer_end (int socket_fd, int nb_args, int process_id) {
+void gerer_end (int socket_fd) {
   // Verifier si les tableaux
   // total_allocation [j] == 0,
   // need[i][j] == 0,
   // allocated[i][j] == 0.
   // Si oui, envoyer ACK, sinon, envoyer une erreur
-
+  int empty = true;
+  for (int i = 0; i < nombre_clients; ++i) {
+    for (int j = 0; j < nombre_ressources ; ++j) {
+      if (allocation[i][j] != 0 || need[i][j] != 0) {
+        empty = false;
+      }
+    }
+    if (empty && total_allocation[i] == 0) {
+      continue;
+    } else {
+      break;
+    }
+  }
+  if (!empty) {
+    int err[3] = {ERR, 1, -1};
+    send(socket_fd, err, sizeof(err), 0);
+    erreur_envoye();
+    printf("Les tableaux ne sont pas completement liberes\n");
+  } else {
+    int ack[2] = {ACK, 0};
+    send(socket_fd, ack, sizeof(ack), 0);
+  }
 
 
   // TODO le derniere client doit arreter le serveur (egal a BEGIN)
@@ -628,13 +648,11 @@ st_init ()
   // Attend la connection d'un client et initialise les structures pour
   // l'algorithme du banquier.
   int socket=accepte_ct();
-
   if (recevoir_beg(socket) < 0) {
     exit(1);
   }
 
   socket=accepte_ct();
-
   if (recevoir_ressource(socket) < 0) {
     exit(1);
   }
@@ -672,19 +690,15 @@ st_process_requests (server_thread * st, int socket_fd)
           send(socket_fd, err, sizeof(err), 0);
           erreur_envoye();
         }
-
       } else if (header.cmd==END) {
         printf("It's over...\n");
+        gerer_end(socket_fd);
+        printf("DONE!\n");
+        accepting_connections = false;
       } else {
         printf("Erreur de lecture... \n");
       }
-
-
-
-
-
     }
-
   } else {
     if (len == 0) {
       fprintf(stderr, "Thread %d, connection timeout\n", st->id);
