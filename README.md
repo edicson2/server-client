@@ -1,4 +1,4 @@
-# Algorithme du banquier / Deadlocks
+# Algorithme du banquier | DeadLocks
 
 Implémentation en C l’algorithme du banquier, un algorithme qui permet de gérer l’allocation des différents types des ressources, tout en évitant les interblocages (deadlocks). Le code fourni implémente un modèle de client-serveur qui utilise les prises (sockets) comme moyen de communication.
 
@@ -11,6 +11,9 @@ On va mettre en pratique quatre sujets différents:
 • Prévention des séquencements critiques (race conditions).
 • Évitement d’interblocages (deadlock avoidance).
 • Communication entre processus via des prises (sockets).
+
+<p align="center"><img src="/Demo-server.gif?raw=true"/><img src="/Demo-client.gif?raw=true"/></p>
+
 
 ## Compiling
 
@@ -26,19 +29,17 @@ Lancer les client et le serveur.
 make run 
 ```
 
-Lancer le client.
-
-```bash
-make run-client
-```
-
-
 Lancer le serveur.
 
 ```bash
 make run-server
 ```
 
+Lancer le client.
+
+```bash
+make run-client
+```
 
 Nettoyer le dossier build.
 
