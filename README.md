@@ -12,7 +12,11 @@ On va mettre en pratique quatre sujets différents:
 • Évitement d’interblocages (deadlock avoidance).
 • Communication entre processus via des prises (sockets).
 
-<p align="center"><img src="/Demo-server.gif?raw=true"/><img src="/Demo-client.gif?raw=true"/></p>
+## Server
+<p align="center"> <img src="/Demo-server.gif?raw=true"/> </p>
+
+## Client
+<p align="center"> <b>Client</b><img src="/Demo-client.gif?raw=true"/></p>
 
 
 ## Compiling
